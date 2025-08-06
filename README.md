@@ -1,13 +1,13 @@
 # Association of Dengue Severity with the Serotype of Infection: a systematic review and meta-analysis
 ### Authors  
-Hadrian Jules Ang$^1$  
-Clare McCormack$^1$  
-Christl A. Donnelly$^{1,2}$  
-Ilaria Dorigatti$^1$
+Hadrian Jules Ang<sup>1</sup>   
+Clare McCormack<sup>1</sup>  
+Christl A. Donnelly<sup>1,2</sup>  
+Ilaria Dorigatti<sup>1</sup>  
 
-$^1$Medical Research Council Centre for Global Infectious Disease Analysis, School of Public Health, Imperial College London, London, United Kingdom
+<sup>1</sup>Medical Research Council Centre for Global Infectious Disease Analysis, School of Public Health, Imperial College London, London, United Kingdom
 
-$^2$Department of Statistics, University of Oxford, Oxford, United Kingdom
+<sup>2</sup>Department of Statistics, University of Oxford, Oxford, United Kingdom
 
 ## Directory Structure
 <pre>
