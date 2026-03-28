@@ -38,18 +38,12 @@ data_list$coeff_prior_sd = 2
 data_list$sd_prior_mean = 0.5
 data_list$sd_prior_sd = 2
 
-data_list$n_tau_sim = 1000 
 
-#model = stan_model(file.path(model_code_dir, "LogisticRegressionModel.stan"))
-model = stan_model(file.path(model_code_dir, "FE_Model.stan"))
-# fit_model = sampling(model, data = data_list, iter = 10000, chains = 4, seed = 0,
-#                      control = list(max_treedepth = 12, adapt_delta = 0.99))
-
-#Just for testing
-fit_model = sampling(model, data = data_list, iter = 500, chains = 1, seed = 0,
+model = stan_model(file.path(model_code_dir, "LogisticRegressionModel.stan"))
+fit_model = sampling(model, data = data_list, iter = 10000, chains = 4, seed = 0,
                      control = list(max_treedepth = 12, adapt_delta = 0.99))
 
-#saveRDS(fit_model, file.path(output_dir, paste0("Results_LogisticRegression_mean=", data_list$coeff_prior_mean,"_sd=", data_list$coeff_prior_sd, "_sd_mean=",  data_list$sd_prior_mean, "_sdsd=", data_list$sd_prior_sd, "_", sev_class_type, ".rds")))
+saveRDS(fit_model, file.path(output_dir, paste0("Results_LogisticRegression_mean=", data_list$coeff_prior_mean,"_sd=", data_list$coeff_prior_sd, "_sd_mean=",  data_list$sd_prior_mean, "_sdsd=", data_list$sd_prior_sd, "_", sev_class_type, ".rds")))
 summ = summary(fit_model)$summary
 
 #summary(fit_model, pars = "p")$summary %>% View

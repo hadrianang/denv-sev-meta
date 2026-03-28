@@ -114,7 +114,12 @@ data{
 
     //Prior for standard deviations for random effects
     real sd_prior_mean; 
-    real sd_prior_sd; 
+    real sd_prior_sd;
+
+    //Array to map scenario index to serotype-prior exposure index
+    //We use this in computation of tau and tau^2
+    array[num_scenarios] int scen_seroprior_ind_map;
+    int n_tau_sim; //Number of simulations to estimate tau and tau^2
 }
 
 transformed data {
@@ -122,7 +127,7 @@ transformed data {
     array[n_row, n_col] int ind_mat; 
     for(i in 1:n_outcomes){
         ind_mat[row_indices[i], col_indices[i]] = i;
-    }
+    } 
 
     //Number of pooled estimates we generate. Note that we can also generate pooled estimates for some excluded scenarios. 
     int n_reg_sero_prior = n_reg * n_sero_prior; 
@@ -140,6 +145,8 @@ transformed data {
         summ_indices[i + n_sero_prior] = i;
     }
     
+    //Characteristic matrix used to generate summary estimates for each scenario (including some excluded scenarios).
+    //Each row is a scenario, each column is a characteristic (intercept, serotype-prior exposure, region).
     for(i in 1:rows(summ_char_matrix)){
         //Ones in the first column        
         summ_char_matrix[i, 1] = 1; 
@@ -297,4 +304,29 @@ generated quantities {
             scenario_or_ratios[i,j] = exp(log_scenario_or_ratios[i,j]); 
         }
     }
+
+    //We estimate tau and tau^2 - one for each scenario 
+    vector[num_scenarios] tau2; 
+    vector[num_scenarios] tau;
+
+    //We estimate between-study variance through simulation for each included scenario.
+    for(i in 1:num_scenarios){
+        //Get the reg_sero_prior_ind for scenario i (mapping included scenarios to their row in summ_char_matrix / n_reg_sero_prior space)
+        int reg_sero_prior_ind = scen_seroprior_ind_map[i]; 
+        vector[n_tau_sim] eps_sim; //Simulated epsilon values for scenario i
+        for(j in 1:n_tau_sim){
+            eps_sim[j] = normal_rng(0, sigma[i]); //Simulate epsilon values based on the standard deviation of the random effects for scenario i
+        }
+        vector[n_tau_sim] theta_sim = inv_logit(logit_p[reg_sero_prior_ind] + eps_sim); //Simulate theta values based on the simulated epsilon values and the fixed effect for scenario i
+        tau2[i] = variance(theta_sim); //Estimate tau^2 as the variance of the simulated theta values
+        tau[i] = sd(theta_sim); //Get tau as the square root of tau^2
+    }
+
+    //We compute the prediction intervals for p, the pooled meta-analytic estimates for each scenario.
+    //To get the prediction intervals, we just simulate a random effect value using sigma 
+    vector[num_scenarios] pred_interval_p;
+    for(i in 1:num_scenarios){
+        pred_interval_p[i] = inv_logit(logit_p[scen_seroprior_ind_map[i]] + normal_rng(0, sigma[i]));
+    }
+
 }
