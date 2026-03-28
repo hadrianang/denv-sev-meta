@@ -41,7 +41,9 @@ data_list$sd_prior_sd = 2
 data_list$n_tau_sim = 1000 
 
 #model = stan_model(file.path(model_code_dir, "LogisticRegressionModel.stan"))
-model = stan_model(file.path(model_code_dir, "FE_Model.stan"))
+#model = stan_model(file.path(model_code_dir, "FE_Model.stan"))
+
+model = stan_model(file.path(model_code_dir, "NoCorr_Model.stan"))
 # fit_model = sampling(model, data = data_list, iter = 10000, chains = 4, seed = 0,
 #                      control = list(max_treedepth = 12, adapt_delta = 0.99))
 
