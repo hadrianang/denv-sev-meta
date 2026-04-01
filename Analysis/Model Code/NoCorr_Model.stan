@@ -197,5 +197,19 @@ generated quantities {
     for(i in 1:num_scenarios){
         pred_interval_p[i] = inv_logit(logit_p[scen_seroprior_ind_map[i]] + normal_rng(0, sigma[i]));
     }
+    //We can give an estimate of I^2 by first computing v_x, the binomial variance of outcome x 
+    vector[n_outcomes] v_x;
+    vector[num_scenarios] v_sums = rep_vector(0, num_scenarios); //This is the variance of the pooled estimate for the scenario that outcome x belongs to, which we can get from the generated p values and the total number of cases for outcome x. We use this as an approximation for the between-study variance since we don't have a closed form for the variance of the predicted probabilities.
+    vector[num_scenarios] v_counts = rep_vector(0, num_scenarios);
+    for(i in 1:n_outcomes){
+        int curr_scenario = scenario_indices[reg_indices[i], col_indices[i]]; //Scenario index of outcome i
+        real curr_p = p[scen_seroprior_ind_map[curr_scenario]]; // Get the value of the pooled estimate for the scenario that outcome i belongs to
 
+        v_x[i] = (curr_p * (1 - curr_p)) / total[row_indices[i], col_indices[i]]; //Binomial variance for outcome i
+        v_sums[curr_scenario] += v_x[i]; //Add the variance of outcome i to the sum of variances for the scenario that outcome i belongs to
+        v_counts[curr_scenario] += 1; //Increment the count of outcomes for the scenario that outcome i belongs to
+    }
+
+    vector[num_scenarios] v_bar = v_sums ./ v_counts; //Get the average variance for each scenario
+    vector[num_scenarios] I2 = tau2 ./ (tau2 + v_bar); //Estimate I^2 using the formula I^2 = tau^2 / (tau^2 + v_bar)
 }
