@@ -2,3 +2,4 @@ Analysis/Model Output/*
 !Analysis/Model Output/.gitkeep
 **/.DS_Store
 Analysis/Heterogeneity Estimates/*
+Analysis/Visuals Output/**
