@@ -116,7 +116,7 @@ data{
     real sd_prior_mean; 
     real sd_prior_sd;
 
-    //Array to map scenario index to serotype-prior exposure index
+    //Array to map scenario index to reg + serotype-prior exposure index
     //We use this in computation of tau and tau^2
     array[num_scenarios] int scen_seroprior_ind_map;
     int n_tau_sim; //Number of simulations to estimate tau and tau^2

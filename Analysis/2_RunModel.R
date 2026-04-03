@@ -57,6 +57,7 @@ fit_model = function(sev_class_type, model_name, data_suffix = "", iter = 10000,
   return(fit_obj)
 }
 
+#test = fit_model("1997type", "LogisticRegressionModel", iter = 500, chains = 1)
 
 orig_1997 = fit_model("1997type", "LogisticRegressionModel", iter = 10000, chains = 4)
 orig_2009 = fit_model("2009type", "LogisticRegressionModel", iter = 10000, chains = 4)
