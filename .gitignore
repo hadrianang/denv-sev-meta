@@ -3,3 +3,4 @@ Analysis/Model Output/*
 **/.DS_Store
 Analysis/Heterogeneity Estimates/*
 Analysis/Visuals Output/**
+Analysis/Model Code/*.rds
