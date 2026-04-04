@@ -91,7 +91,7 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
                     select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>% 
                     mutate(Scenario = scenario_labels)
 
-    tau_estimates = summary(curr_output_data, pars = "tau2")$summary %>% data.frame %>% 
+    tau_estimates = summary(curr_output_data, pars = "tau")$summary %>% data.frame %>% 
                     select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>%
                     mutate(ScenIndex = 1:nrow(.)) %>% mutate(DispTau = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper))
     #Get scenarios and then join the p estimates to them, removing rows where we do not have an estimate
@@ -130,13 +130,11 @@ merged_forest_df = merged_forest_df %>% mutate(Pooled = ifelse(Inclusion == "Inc
                                                Severe = ifelse(Inclusion == "Excluded", "-", Severe))
 
 
-# %%
-merged_forest_df %>% view
 
 # %%
-options(repr.plot.width = 15, repr.plot.height = 21)
+options(repr.plot.width = 17, repr.plot.height = 21)
 merged_forest_plot = merged_forest_df %>% 
-    forestplot(labeltext = c(Scenario, Pooled, NumStudies, N, Severe, DispVal, DispHet),
+    forestplot(labeltext = c(Scenario, Pooled, NumStudies, N, Severe, DispVal, DispHet, DispTau),
                 mean = PointEst, lower = Lower, upper = Upper,
                 xticks = seq(0, 1, by = 0.2), ci.vertices = TRUE, boxsize = 0.2,
                 align = c("l", "l", "l", "r", "r", "l"), graphwidth = unit(1.8, "in"), 
@@ -151,14 +149,16 @@ merged_forest_plot = merged_forest_df %>%
                     N = "N", 
                     Severe = "Severe", 
                     DispVal = "Est. Prop. Severe [95% CrI]",
-                    DispHet = expression(I^{2})) |> 
+                    DispHet = expression(I^{2}),
+                    DispTau = expression(tau)
+                ) |> 
     fp_decorate_graph(graph.pos = 7) |>
     fp_set_zebra_style("#EFEFEF")
 
 
 if(save_output){
     #save_plot(merged_forest_plot, file.path(visuals_output_dir, paste0("ScenarioForest.png")), 15, 21, "in", 600)
-    save_plot_all_formats(merged_forest_plot, visuals_output_dir, "ScenarioForest", 15, 21, "in", 600)
+    save_plot_all_formats(merged_forest_plot, visuals_output_dir, "ScenarioForest", 17, 21, "in", 600)
 }
 merged_forest_plot
 
