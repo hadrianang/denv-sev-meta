@@ -60,13 +60,15 @@ res_name = "Orig"
 #%%
 #sev_class_type = "2009type"
 #sev_class_type = "hospitalisation"
-generate_visuals = function(sev_class_type, model_name, res_name, suffix = ""){
+generate_visuals = function(sev_class_type, model_name, res_name, suffix = "", effects_type = "random", het_est = "orig"){
+
     visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, res_name, sev_class_type)
     subgroup_forests_dir = file.path(visuals_output_dir, "ScenarioForests")
 
     input_data = file.path(model_input_dir, paste0("data_", sev_class_type, suffix, ".rds")) %>% readRDS
     model_results = file.path(model_output_dir, paste0("Results_", model_name, suffix, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_type, ".rds")) %>% readRDS
-    het_results = file.path(het_dir, paste0("I2_Estimates_",model_name, suffix,  "_", sev_class_type, ".rds")) %>% readRDS
+    
+
     if(!dir.exists(visuals_output_dir)){
         dir.create(visuals_output_dir, recursive = TRUE)
         
@@ -80,6 +82,7 @@ generate_visuals = function(sev_class_type, model_name, res_name, suffix = ""){
         dir.create(file.path(subgroup_forests_dir, "eps"))
         dir.create(file.path(subgroup_forests_dir, "pdf"))
     }
+
     # Model Fit Visuals ----
     # %%
     # First, we generate a visual showing how the model fits to the data.
@@ -149,40 +152,55 @@ generate_visuals = function(sev_class_type, model_name, res_name, suffix = ""){
     p_estimates = p_estimates %>% select(mean, X2.5., X97.5.) %>% 
         rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>% mutate(Scenario = scenario_labels)
 
-    tau_estimates = summary(model_results, pars = "tau")$summary %>% data.frame %>% 
-                    select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>%
-                    mutate(ScenIndex = 1:nrow(.)) %>% mutate(DispTau = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper))
-
-
-    scenario_df = input_data$scenario_df %>% left_join(het_results %>% select(Scenario, I2_est), by = "Scenario")
+    scenario_df = input_data$scenario_df #%>% left_join(het_results %>% select(Scenario, I2_est), by = "Scenario")
     scenario_vis_df = scenario_df %>% left_join(p_estimates, by = "Scenario") %>% 
                         filter(!is.na(CharMatIndex)) %>% 
-                        mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) %>%
-                        mutate(DispHet = ifelse(is.na(I2_est), "-", sprintf("%.2f%%", I2_est * 100))) %>% 
-                        mutate(Pooled = ifelse(Inclusion == "Included", "Pooled", "Not Pooled")) %>%
-                        left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex") %>% select(-ScenIndex)
+                        mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) #%>%
+                        #mutate(DispHet = ifelse(is.na(I2_est), "-", sprintf("%.2f%%", I2_est * 100))) %>% 
                         
+    labeltext_list = c("Scenario", "Pooled", "NumStudies", "N", "Severe", "DispVal")
+    header_args = list(
+                        Scenario = "Scenario", 
+                        Pooled = "Pooling?",
+                        NumStudies = "# Studies",
+                        N = "N", 
+                        Severe = severe_name, 
+                        DispVal = "Est. Proportion [95% CrI]"
+                    )
+    if(effects_type == "random"){
+        #If we are using a random effects model, retrieve the heterogeneity estimates 
+        het_results = file.path(het_dir, paste0("I2_Estimates_", model_name, suffix,  "_", sev_class_type, ".rds")) %>% readRDS
+
+        tau_estimates = summary(model_results, pars = "tau")$summary %>% data.frame %>% 
+                        select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>%
+                        mutate(ScenIndex = 1:nrow(.)) %>% mutate(DispTau = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper))
+        
+        scenario_vis_df = scenario_vis_df %>% left_join(het_results %>% select(Scenario, I2_est), by = "Scenario") %>%
+                        mutate(DispHet = ifelse(is.na(I2_est), "-", sprintf("%.2f%%", I2_est * 100))) %>% 
+                        left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex") %>% select(-ScenIndex)
+        labeltext_list = c(labeltext_list, "DispHet", "DispTau")
+        header_args$DispHet = expression(I^{2})
+        header_args$DispTau = expression(tau)
+    }
+    scenario_vis_df = scenario_vis_df %>% mutate(Pooled = ifelse(Inclusion == "Included", "Pooled", "Not Pooled")) 
+    
+    label_df = scenario_vis_df %>% 
+        arrange(Scenario) %>%
+        select(all_of(labeltext_list))
     #Generate a forest plot specifically for this severity class
     options(repr.plot.width = 15, repr.plot.height = 13)
     scenario_plot = scenario_vis_df %>% arrange(Scenario) %>%
-        forestplot(labeltext = c(Scenario, Pooled, NumStudies, N, Severe, DispVal, DispHet, DispTau),
+        forestplot(labeltext = label_df,
                     mean = PointEst, lower = Lower, upper = Upper,
                     xticks = seq(0, 1, by = 0.2), ci.vertices = TRUE, boxsize = 0.2,
                     align = c("l", "l", "l", "r", "r"), graphwidth = unit(1.8, "in")
                 ) |>
         fp_add_lines(h_2 = gpar(lty = 2)) |>
         fp_set_style(box = "royalblue", line = gpar(col = "darkblue"), summary = "royalblue",
-                    txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1))) |>
-        fp_add_header(
-                        Scenario = "Scenario", 
-                        Pooled = "Pooling?",
-                        NumStudies = "# Studies",
-                        N = "N", 
-                        Severe = severe_name, 
-                        DispVal = "Est. Proportion [95% CrI]",
-                        DispHet = expression(I^{2}), 
-                        DispTau = expression(tau)
-        ) |> fp_decorate_graph(graph.pos = 7) |> fp_set_zebra_style("#EFEFEF")
+                    txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1)))
+    scenario_plot = do.call(fp_add_header, c(list(scenario_plot), header_args))
+    scenario_plot = scenario_plot |>
+        fp_decorate_graph(graph.pos = 7) |> fp_set_zebra_style("#EFEFEF")
 
     if(save_output){
         #save_plot(scenario_plot, file.path(visuals_output_dir, paste0("SubgroupForest_",  sev_class_type, ".png")), 15, 13, "in", 600)
