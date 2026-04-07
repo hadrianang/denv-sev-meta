@@ -47,18 +47,18 @@ index_dir = getwd() #Where the review index is in
 setwd(base_dir)
 
 io_set = "Main Results"
-
+model_set = "LogisticRegression"
 model_input_dir = file.path(base_dir, "Processed Data", io_set)
 model_output_dir = file.path(base_dir, "Model Output", io_set)
 sev_class_types = c("1997type", "2009type", "hospitalisation")
 
 het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
-visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, "Group Visuals")
+visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, model_set, "Group Visuals")
 
 
 model_input_paths = file.path(model_input_dir, paste0("data_", sev_class_types, ".rds"))
-model_output_paths = file.path(model_output_dir, paste0("Results_LogisticRegression_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_types, ".rds"))
-het_results_paths = file.path(het_dir, paste0("I2_Estimates_", sev_class_types, ".rds"))
+model_output_paths = file.path(model_output_dir, paste0("Results_", model_set, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_types, ".rds"))
+het_results_paths = file.path(het_dir, paste0("I2_Estimates_", model_set, "_", sev_class_types, ".rds"))
 
 model_inputs = lapply(model_input_paths, readRDS)
 model_outputs = lapply(model_output_paths, readRDS)
@@ -73,7 +73,7 @@ curr_input_data = model_inputs[[1]]
 curr_output_data = model_outputs[[1]]
 curr_sev_class_type = sev_class_types[[1]]
 curr_het_results = het_results[[1]]
-process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_class_type, curr_het_results){
+process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_class_type, curr_het_results, effect_type = "random", het_est = "separate"){
     #Probabilities are given in the estimates of p 
     ref_region = curr_input_data$ref_region
     non_ref_region = ifelse(ref_region == "Asia", "Americas", "Asia")
@@ -90,10 +90,10 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
     p_estimates = summary(curr_output_data, pars = "p")$summary %>% data.frame %>% 
                     select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>% 
                     mutate(Scenario = scenario_labels)
-
-    tau_estimates = summary(curr_output_data, pars = "tau")$summary %>% data.frame %>% 
-                    select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>%
-                    mutate(ScenIndex = 1:nrow(.)) %>% mutate(DispTau = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper))
+    if effect_type == "random":
+        tau_estimates = summary(curr_output_data, pars = "tau")$summary %>% data.frame %>% 
+                        select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>%
+                        mutate(ScenIndex = 1:nrow(.)) %>% mutate(DispTau = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper))
     #Get scenarios and then join the p estimates to them, removing rows where we do not have an estimate
     scenario_df = curr_input_data$scenario_df %>% select(ScenIndex, Scenario, Inclusion, NumStudies, Severe, N) %>% 
                     left_join(p_estimates, by = "Scenario") %>% mutate(SevClass = curr_sev_class_type) %>%
