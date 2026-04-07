@@ -63,8 +63,8 @@ suffix = ""
 #%%
 #sev_class_type = "2009type"
 #sev_class_type = "hospitalisation"
-generate_visuals = function(sev_class_type, model_name, res_name, suffix = "", effects_type = "random", het_est = "separate"){
-
+generate_visuals = function(sev_class_type, model_name, suffix = "", effects_type = "random", het_est = "separate"){
+    res_name = model_name #To simplify the naming of results, we set res_name as model_name
     visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, res_name, sev_class_type)
     subgroup_forests_dir = file.path(visuals_output_dir, "ScenarioForests")
 
@@ -424,16 +424,16 @@ generate_visuals = function(sev_class_type, model_name, res_name, suffix = "", e
 sev_class_type = sev_class_types[[1]]
 model_name = model_names[[1]]
 res_name = "Orig"
-generate_visuals("1997type", "LogisticRegression", "Orig", het_est = "stan")
-generate_visuals("2009type", "LogisticRegression", "Orig", het_est = "stan")
-generate_visuals("hospitalisation", "LogisticRegression", "Orig", het_est = "stan")
+generate_visuals("1997type", "LogisticRegression", het_est = "stan")
+generate_visuals("2009type", "LogisticRegression", het_est = "stan")
+generate_visuals("hospitalisation", "LogisticRegression", het_est = "stan")
 
 #%%
-generate_visuals("1997type", "NoCorr", "NoCorr", het_est = "stan")
-generate_visuals("2009type", "NoCorr", "NoCorr", het_est = "stan")
-generate_visuals("hospitalisation", "NoCorr", "NoCorr", het_est = "stan")
+generate_visuals("1997type", "NoCorr", het_est = "stan")
+generate_visuals("2009type", "NoCorr", het_est = "stan")
+generate_visuals("hospitalisation", "NoCorr", het_est = "stan")
 
 #%%
-generate_visuals("1997type", "FE", "FE", effects_type = "fixed")
-generate_visuals("2009type", "FE", "FE", effects_type = "fixed")
-generate_visuals("hospitalisation", "FE", "FE", effects_type = "fixed")
+generate_visuals("1997type", "FE", effects_type = "fixed")
+generate_visuals("2009type", "FE", effects_type = "fixed")
+generate_visuals("hospitalisation", "FE", effects_type = "fixed")

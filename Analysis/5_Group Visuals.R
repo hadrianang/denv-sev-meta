@@ -27,9 +27,20 @@ save_plot = function(curr_plot, filepath, width, height, units, res, type = "png
 }
 
 save_plot_all_formats = function(curr_plot, dir_path, filename, width, height, units, res){
-    png_path = file.path(dir_path, "png", paste0(filename, ".png"))
-    eps_path = file.path(dir_path, "eps", paste0(filename, ".eps"))
-    pdf_path = file.path(dir_path, "pdf", paste0(filename, ".pdf"))
+  
+	#If the file format directories do not exist, create them
+	png_dir = file.path(dir_path, "png")
+	eps_dir = file.path(dir_path, "eps")
+	pdf_dir = file.path(dir_path, "pdf")
+	if(!dir.exists(png_dir)){
+		dir.create(png_dir, recursive = TRUE)
+		dir.create(eps_dir, recursive = TRUE)
+		dir.create(pdf_dir, recursive = TRUE)
+	}
+  
+    png_path = file.path(png_dir, paste0(filename, ".png"))
+    eps_path = file.path(eps_dir, paste0(filename, ".eps"))
+    pdf_path = file.path(pdf_dir, paste0(filename, ".pdf"))
 
     save_plot(curr_plot, png_path, width, height, units, res, type = "png")
     save_plot(curr_plot, eps_path, width, height, units, res, type = "eps")
@@ -53,8 +64,7 @@ model_output_dir = file.path(base_dir, "Model Output", io_set)
 sev_class_types = c("1997type", "2009type", "hospitalisation")
 
 het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
-visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, model_set, "Group Visuals")
-
+visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, model_set, "GroupVisuals")
 
 model_input_paths = file.path(model_input_dir, paste0("data_", sev_class_types, ".rds"))
 model_output_paths = file.path(model_output_dir, paste0("Results_", model_set, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_types, ".rds"))
@@ -64,6 +74,10 @@ model_inputs = lapply(model_input_paths, readRDS)
 model_outputs = lapply(model_output_paths, readRDS)
 het_results = lapply(het_results_paths, readRDS)
 
+#If visuals_output_dir does not exist, create it
+if(!dir.exists(visuals_output_dir)){
+	dir.create(visuals_output_dir, recursive = TRUE)
+}
 
 # 2. Scenario Probability Visuals ----
 # Here we prepare our data for visualisation. The first thing we need is to get estimates of the proportion of severe cases per scenario aross the different severity class systems

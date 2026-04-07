@@ -87,6 +87,7 @@ for(i in 1:length(orig_fits)) {
   curr_no_corr_fit = no_corr_fits[[i]]
   curr_no_unknown_fit = orig_no_unknown_fits[[i]]
   curr_sev_class_type = sev_classes[i]
+  
   saveRDS(curr_fit, file.path(output_dir, paste0("Results_LogisticRegression_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_", curr_sev_class_type, ".rds")))
   saveRDS(curr_fe_fit, file.path(output_dir, paste0("Results_FE_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_", curr_sev_class_type, ".rds")))
   saveRDS(curr_no_corr_fit, file.path(output_dir, paste0("Results_NoCorr_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_", curr_sev_class_type, ".rds")))
