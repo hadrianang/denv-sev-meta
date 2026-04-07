@@ -86,6 +86,7 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
 				    paste0(ref_region, "-", non_ref_seroprior),
 				    paste0(non_ref_region, "-", c(ref_serotype_exposure, non_ref_seroprior))
 				   )
+  
     #Get estimates of p
     p_estimates = summary(curr_output_data, pars = "p")$summary %>% data.frame %>% 
 				select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>% 
@@ -109,14 +110,14 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
 						mutate(DispHet = ifelse(is.na(I2_est), "-", sprintf("%.2f%%", I2_est * 100))) %>% select(-I2_est)
 		}
 		#Join the tau estimates to the scenario_df then remvoe the ScenIndex column to simplify
-		scenario_df = scenario_df %>% left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex") %>% select(-ScenIndex)
+		scenario_df = scenario_df %>% left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex") 
 	}
 
     #Get scenarios and then join the p estimates to them, removing rows where we do not have an estimate
     scenario_df = scenario_df %>% 
 				left_join(p_estimates, by = "Scenario") %>% mutate(SevClass = curr_sev_class_type) %>%
 				filter(!is.na(PointEst)) %>% arrange(Scenario) %>% 
-				mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper))
+				mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) %>% select(-ScenIndex)
 
     disp_sev_class = ""
     if(curr_sev_class_type == "1997type"){
@@ -129,14 +130,16 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
     #Create the header row
     header_row = data.frame(Scenario = disp_sev_class, Inclusion = NA,
 					  NumStudies = NA, Severe = NA, N = NA, PointEst = NA, 
-					   Lower = NA, Upper = NA, DispVal = NA, DispHet = NA, DispTau = NA,
+					   Lower = NA, Upper = NA, DispVal = NA, #DispHet = NA, DispTau = NA,
 					  SevClass = "HEADER")
-
+	if (effect_type == "random"){
+		header_row = header_row %>% mutate(DispHet = NA, DispTau = NA)
+	}
     scenario_df = rbind(header_row, scenario_df %>% mutate(Scenario = paste0("       ", Scenario))) 
     return(scenario_df)
 }
 
-gen_scenario_pooled_visual = function(model_inputs, model_outputs,sev_class_types, het_results, effect_type = "random", save_output = save_output){
+gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_types, het_results, visuals_output_dir, effect_type = "random", save_output = save_output){
 	#If het_results is NULL, we use the Stan estimated I^2 values
 	if(is.null(het_results)){
        	scenario_probs = mapply(process_scenario_probs, model_inputs, model_outputs, sev_class_types, 
@@ -144,7 +147,7 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs,sev_class_type
 	}else{
 		#If het_results is not NULL, use those loaded from a file separately
         scenario_probs = mapply(process_scenario_probs, model_inputs, model_outputs, sev_class_types, het_results, 
-							oreArgs = list(effect_type = effect_type), SIMPLIFY = FALSE)
+							MoreArgs = list(effect_type = effect_type), SIMPLIFY = FALSE)
 	}
 
 	merged_scenarios = do.call(rbind, scenario_probs)
@@ -153,29 +156,40 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs,sev_class_type
 									ifelse(Inclusion == "Excluded", "Not Pooled", NA))) %>% 
 										mutate(N = ifelse(Inclusion == "Excluded", "-", N),
 										Severe = ifelse(Inclusion == "Excluded", "-", Severe))
+  
+	labeltext_list = c("Scenario", "Pooled", "NumStudies", "N", "Severe", "DispVal")
+    header_args = list(
+                        Scenario = "Scenario", 
+                        Pooled = "Pooling?",
+                        NumStudies = "# Studies",
+                        N = "N", 
+                        Severe = "Severe", 
+                        DispVal = "Est. Proportion [95% CrI]"
+                    )
+	if(effect_type == "random"){
+		labeltext_list = c(labeltext_list, "DispHet", "DispTau")
+		header_args$DispHet = expression(I^{2})
+		header_args$DispTau = expression(tau)
+	}
 
+    label_df = merged_forest_df %>% 
+
+        select(all_of(labeltext_list))
+	
 	options(repr.plot.width = 17, repr.plot.height = 21)
 	merged_forest_plot = merged_forest_df %>% 
-		forestplot(labeltext = c(Scenario, Pooled, NumStudies, N, Severe, DispVal, DispHet, DispTau),
+		forestplot(labeltext = label_df,
 				mean = PointEst, lower = Lower, upper = Upper,
 				xticks = seq(0, 1, by = 0.2), ci.vertices = TRUE, boxsize = 0.2,
 				align = c("l", "l", "l", "r", "r", "l"), graphwidth = unit(1.8, "in"), 
 				) |>
 		fp_add_lines(h_2 = gpar(lty = 2)) |>
 		fp_set_style(box = "royalblue", line = gpar(col = "darkblue"), summary = "royalblue",
-				txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1))) |>
-		fp_add_header(
-					Scenario = "Scenario",
-					Pooled = "Pooled?",
-					NumStudies = "# Studies",
-					N = "N", 
-					Severe = "Severe", 
-					DispVal = "Est. Prop. Severe [95% CrI]",
-					DispHet = expression(I^{2}),
-					DispTau = expression(tau)
-				) |> 
-		fp_decorate_graph(graph.pos = 7) |>
-		fp_set_zebra_style("#EFEFEF")
+				txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1)))
+      
+        merged_forest_plot = do.call(fp_add_header, c(list(merged_forest_plot), header_args))
+   		merged_forest_plot = merged_forest_plot |>
+        fp_decorate_graph(graph.pos = 7) |> fp_set_zebra_style("#EFEFEF")
 
 
 	if(save_output){
@@ -218,8 +232,15 @@ process_or_vals = function(curr_input_data, curr_output_data, curr_sev_class_typ
     return(or_beta_est)
 }
 
-gen_ref_or_table_visual = function(model_inputs, model_outputs, sev_class_types, save_output = save_output){
-	sev_class_ors = mapply(process_or_vals, model_inputs, model_outputs, sev_class_types, SIMPLIFY = FALSE)
+gen_ref_or_table_visual = function(model_inputs, model_outputs, sev_class_types, visuals_output_dir, save_output = save_output){
+	#This function assumes that all inputs have the same reference region and serotype-prior exposure, so we can just pull these from the first input data	
+	curr_input_data = model_inputs[[1]]
+  	ref_region = curr_input_data$ref_region
+    non_ref_region = ifelse(ref_region == "Asia", "Americas", "Asia")
+    ref_serotype_exposure = curr_input_data$ref_serotype_exposure
+    ref_scenario = curr_input_data$ref_scenario
+  
+  	sev_class_ors = mapply(process_or_vals, model_inputs, model_outputs, sev_class_types, SIMPLIFY = FALSE)
 	log_sev_class_ors = mapply(process_or_vals, model_inputs, model_outputs, sev_class_types, rep(TRUE, 3), SIMPLIFY = FALSE)
 
 	options(repr.plot.width = 13, repr.plot.height = 8)
@@ -310,7 +331,7 @@ gen_ref_or_table_visual = function(model_inputs, model_outputs, sev_class_types,
 # Versus Vaccine Trial Data ----
 # Here, we compare the pooled probability of hospitalisation to the values from the TAK-003 clinical trials.
 # %%
-gen_vacc_comp_visual = function(merged_forest_df, save_output = save_output){
+gen_vacc_comp_visual = function(merged_forest_df, visuals_output_dir, save_output = save_output){
 	vacc_dir = file.path(base_dir, "Vaccine Trial Data")
 	vacc_data_m57_sl = read_excel(file.path(vacc_dir, "Month57DataSriLanka.xlsx"))
 	vacc_data_m57_sl = vacc_data_m57_sl %>% mutate(Scenario = paste0(Serotype, " ", Scope, " (Month 57)"), SET = "Month 57", TYPE = "DATA")
@@ -364,7 +385,7 @@ gen_vacc_comp_visual = function(merged_forest_df, save_output = save_output){
 
 # Results Per Region and Country ----
 # %%
-generate_region_country_visual = function(model_inputs, index_df, save_output = save_output){
+generate_region_country_visual = function(model_inputs, index_df, visuals_output_dir, save_output = save_output){
 
 	include_df = index_df %>% filter(FinalDecision %in% c("Include"))
 
@@ -409,27 +430,164 @@ generate_region_country_visual = function(model_inputs, index_df, save_output = 
 
 
 #%%
-model_set = "LogisticRegression"
-het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
-visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, model_set, "GroupVisuals")
-model_input_paths = file.path(model_input_dir, paste0("data_", sev_class_types, ".rds"))
-model_output_paths = file.path(model_output_dir, paste0("Results_", model_set, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_types, ".rds"))
-het_results_paths = file.path(het_dir, paste0("I2_Estimates_", model_set, "_", sev_class_types, ".rds"))
-index_df = read_excel(file.path(index_dir, "ReviewIndex_Final.xlsx"), sheet = "Main")
+visualise_model_set = function(model_set, effect_type, data_suffix = "", het_est = "stan", save_output = save_output){
+	het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
+	visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, model_set, "GroupVisuals")
+  	print(visuals_output_dir)
+	model_input_paths = file.path(model_input_dir, paste0("data_", sev_class_types, data_suffix, ".rds"))
+	model_output_paths = file.path(model_output_dir, paste0("Results_", model_set, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_types, ".rds"))
 
-model_inputs = lapply(model_input_paths, readRDS)
-model_outputs = lapply(model_output_paths, readRDS)
-het_results = lapply(het_results_paths, readRDS)
+	index_df = read_excel(file.path(index_dir, "ReviewIndex_Final.xlsx"), sheet = "Main")
 
-#If visuals_output_dir does not exist, create it
-if(!dir.exists(visuals_output_dir)){
-	dir.create(visuals_output_dir, recursive = TRUE)
+	model_inputs = lapply(model_input_paths, readRDS)
+	model_outputs = lapply(model_output_paths, readRDS)
+	if(het_est == "separate"){
+		het_results_paths = file.path(het_dir, paste0("I2_Estimates_", model_set, "_", sev_class_types, ".rds"))
+		het_results = lapply(het_results_paths, readRDS)
+	}else if(het_est == "stan"){
+		het_results = NULL
+	}else{
+		stop("Invalid het_est value. Must be either 'stan' or 'separate'.")
+	}
+	
+	#If visuals_output_dir does not exist, create it
+	if(!dir.exists(visuals_output_dir)){
+		dir.create(visuals_output_dir, recursive = TRUE)
+	}
+
+
+	merged_forest_df = gen_scenario_pooled_visual(model_inputs, model_outputs,sev_class_types, 
+						het_results = het_results, visuals_output_dir = visuals_output_dir, effect_type = effect_type, save_output = save_output)
+
+	gen_ref_or_table_visual(model_inputs, model_outputs, sev_class_types, visuals_output_dir = visuals_output_dir, save_output = save_output)
+	gen_vacc_comp_visual(merged_forest_df, visuals_output_dir = visuals_output_dir, save_output = save_output)
+	generate_region_country_visual(model_inputs, index_df, visuals_output_dir = visuals_output_dir, save_output = save_output)
 }
 
+#Function Calls ----
+#%%
+model_sets = c("LogisticRegression", "LogisticRegression_no_unknown", "FE", "NoCorr")
+visualise_model_set("LogisticRegression", effect_type = "random", het_est = "stan", save_output = save_output)
+visualise_model_set("LogisticRegression_no_unknown", effect_type = "random", data_suffix = "_no_unknown", het_est = "stan", save_output = save_output)
+visualise_model_set("FE", effect_type = "fixed", het_est = "stan", save_output = save_output)
+visualise_model_set("NoCorr", effect_type = "random", het_est = "stan", save_output = save_output)
 
-merged_forest_df = gen_scenario_pooled_visual(model_inputs, model_outputs,sev_class_types, 
-					het_results = NULL, effect_type = "random", save_output = save_output)
 
-gen_ref_or_table_visual(model_inputs, model_outputs, sev_class_types, save_output = save_output)
-gen_vacc_comp_visual(merged_forest_df, save_output = save_output)
-generate_region_country_visual(model_inputs, index_df, save_output = save_output)
+#%%
+# curr_input_data = model_inputs[[1]]
+# curr_output_data = model_outputs[[1]]
+# curr_sev_class_type = sev_class_types[[1]]
+# curr_het_results = NULL
+# #curr_input_data, curr_output_data, curr_sev_class_type, curr_het_results, effect_type = "random"
+# model_set = "FE"
+# effect_type = "fixed"
+# het_est = "stan"
+
+
+
+# het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
+# visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, model_set, "GroupVisuals")
+# model_input_paths = file.path(model_input_dir, paste0("data_", sev_class_types, ".rds"))
+# model_output_paths = file.path(model_output_dir, paste0("Results_", model_set, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_types, ".rds"))
+
+# index_df = read_excel(file.path(index_dir, "ReviewIndex_Final.xlsx"), sheet = "Main")
+
+# model_inputs = lapply(model_input_paths, readRDS)
+# model_outputs = lapply(model_output_paths, readRDS)
+# if(het_est == "separate"){
+# 	het_results_paths = file.path(het_dir, paste0("I2_Estimates_", model_set, "_", sev_class_types, ".rds"))
+# 	het_results = lapply(het_results_paths, readRDS)
+# }else if(het_est == "stan"){
+# 	het_results = NULL
+# }else{
+# 	stop("Invalid het_est value. Must be either 'stan' or 'separate'.")
+# }
+
+
+# #If visuals_output_dir does not exist, create it
+# if(!dir.exists(visuals_output_dir)){
+# 	dir.create(visuals_output_dir, recursive = TRUE)
+# }
+
+# #%%
+# #Probabilities are given in the estimates of p 
+# ref_region = curr_input_data$ref_region
+# non_ref_region = ifelse(ref_region == "Asia", "Americas", "Asia")
+# ref_serotype_exposure = curr_input_data$ref_serotype_exposure
+# ref_scenario = curr_input_data$ref_scenario
+# non_ref_seroprior = curr_input_data$char_mat_guide %>% filter(CharMatIndex >0) %>% pull(SeroPriorExp) %>% as.character
+
+
+# scenario_labels = c(ref_scenario, 
+# 				paste0(ref_region, "-", non_ref_seroprior),
+# 				paste0(non_ref_region, "-", c(ref_serotype_exposure, non_ref_seroprior))
+# 				)
+
+# #Get estimates of p
+# p_estimates = summary(curr_output_data, pars = "p")$summary %>% data.frame %>% 
+# 			select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>% 
+# 			mutate(Scenario = scenario_labels)
+
+# scenario_df = curr_input_data$scenario_df %>% select(ScenIndex, Scenario, Inclusion, NumStudies, Severe, N)
+
+# if(effect_type == "random"){
+# 	tau_estimates = summary(curr_output_data, pars = "tau")$summary %>% data.frame %>% 
+# 				select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>%
+# 				mutate(ScenIndex = 1:nrow(.)) %>% mutate(DispTau = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper))
+				
+
+# 	#If curr_het_results is NULL then use the I^2 estimates from Stan rather than the separate ones loaded from files
+# 	if(is.null(curr_het_results)){
+# 		curr_het_results = summary(curr_output_data, pars = "I2")$summary %>% data.frame %>% 
+# 					select(mean, X2.5., X97.5.) %>% mutate(ScenIndex = 1:nrow(.)) %>% mutate(DispHet = sprintf("%.2f%% [%.2f to %.2f%%]", mean * 100, X2.5. * 100, X97.5. * 100))
+# 		scenario_df = scenario_df %>% left_join(curr_het_results %>% select(ScenIndex, DispHet), by = "ScenIndex")
+# 	}else{
+# 		scenario_df = scenario_df %>% left_join(curr_het_results %>% select(Scenario, I2_est), by = "Scenario") %>%
+# 					mutate(DispHet = ifelse(is.na(I2_est), "-", sprintf("%.2f%%", I2_est * 100))) %>% select(-I2_est)
+# 	}
+# 	#Join the tau estimates to the scenario_df then remvoe the ScenIndex column to simplify
+# 	scenario_df = scenario_df %>% left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex") 
+# }
+
+# #Get scenarios and then join the p estimates to them, removing rows where we do not have an estimate
+# scenario_df = scenario_df %>% 
+# 			left_join(p_estimates, by = "Scenario") %>% mutate(SevClass = curr_sev_class_type) %>%
+# 			filter(!is.na(PointEst)) %>% arrange(Scenario) %>% 
+# 			mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) %>% select(-ScenIndex) 
+
+# disp_sev_class = ""
+# if(curr_sev_class_type == "1997type"){
+# 	disp_sev_class = "1997-type"
+# }else if(curr_sev_class_type == "2009type"){
+# 	disp_sev_class = "2009-type"
+# }else{
+# 	disp_sev_class = "Hospitalisation"
+# }
+# #Create the header row
+# header_row = data.frame(Scenario = disp_sev_class, Inclusion = NA,
+# 					NumStudies = NA, Severe = NA, N = NA, PointEst = NA, 
+# 					Lower = NA, Upper = NA, DispVal = NA,
+# 					SevClass = "HEADER")
+
+# if (effect_type == "random"){
+# 	header_row = header_row %>% mutate(DispHet = NA, DispTau = NA)
+# }
+
+# scenario_df = rbind(header_row, scenario_df %>% mutate(Scenario = paste0("       ", Scenario)))
+
+# #%%
+# if(is.null(het_results)){
+# 	scenario_probs = mapply(process_scenario_probs, model_inputs, model_outputs, sev_class_types, 
+# 						MoreArgs = list(curr_het_results = NULL, effect_type = effect_type), SIMPLIFY = FALSE)
+# }else{
+# 	#If het_results is not NULL, use those loaded from a file separately
+# 	scenario_probs = mapply(process_scenario_probs, model_inputs, model_outputs, sev_class_types, het_results, 
+# 						MoreArgs = list(effect_type = effect_type), SIMPLIFY = FALSE)
+# }
+
+# merged_scenarios = do.call(rbind, scenario_probs)
+# merged_forest_df = merged_scenarios
+# merged_forest_df = merged_forest_df %>% mutate(Pooled = ifelse(Inclusion == "Included", "Pooled", 
+# 								ifelse(Inclusion == "Excluded", "Not Pooled", NA))) %>% 
+# 									mutate(N = ifelse(Inclusion == "Excluded", "-", N),
+# 									Severe = ifelse(Inclusion == "Excluded", "-", Severe))
