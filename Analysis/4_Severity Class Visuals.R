@@ -421,9 +421,7 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
 }
 #%%
 
-sev_class_type = sev_class_types[[1]]
-model_name = model_names[[1]]
-res_name = "Orig"
+
 generate_visuals("1997type", "LogisticRegression", het_est = "stan")
 generate_visuals("2009type", "LogisticRegression", het_est = "stan")
 generate_visuals("hospitalisation", "LogisticRegression", het_est = "stan")
