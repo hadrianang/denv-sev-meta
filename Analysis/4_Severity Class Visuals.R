@@ -56,7 +56,6 @@ model_names = c("LogisticRegression", "FE", "NoCorr")
 
 sev_class_type = sev_class_types[[1]]
 model_name = model_names[[1]]
-res_name = "Orig"
 effects_type = "random"
 het_est = "stan"
 suffix = ""
@@ -64,8 +63,8 @@ suffix = ""
 #sev_class_type = "2009type"
 #sev_class_type = "hospitalisation"
 generate_visuals = function(sev_class_type, model_name, suffix = "", effects_type = "random", het_est = "separate"){
-    res_name = model_name #To simplify the naming of results, we set res_name as model_name
-    visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, res_name, sev_class_type)
+    #res_name = model_name #To simplify the naming of results, we set res_name as model_name
+    visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, paste0(model_name, suffix), sev_class_type)
     subgroup_forests_dir = file.path(visuals_output_dir, "ScenarioForests")
 
     input_data = file.path(model_input_dir, paste0("data_", sev_class_type, suffix, ".rds")) %>% readRDS
@@ -221,7 +220,7 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
 
     if(save_output){
         #save_plot(scenario_plot, file.path(visuals_output_dir, paste0("SubgroupForest_",  sev_class_type, ".png")), 15, 13, "in", 600)
-        save_plot_all_formats(scenario_plot, visuals_output_dir, paste0("SubgroupForest_",  sev_class_type), 15, 13, "in", 600)
+        save_plot_all_formats(scenario_plot, visuals_output_dir, paste0("SubgroupForest_",  sev_class_type), 18, 14, "in", 600)
     }
 
 
@@ -435,3 +434,15 @@ generate_visuals("hospitalisation", "NoCorr", het_est = "stan")
 generate_visuals("1997type", "FE", effects_type = "fixed")
 generate_visuals("2009type", "FE", effects_type = "fixed")
 generate_visuals("hospitalisation", "FE", effects_type = "fixed")
+
+#%%
+#No unknown visuals
+generate_visuals("1997type", "LogisticRegression", suffix = "_no_unknown", het_est = "stan")
+generate_visuals("2009type", "LogisticRegression", suffix = "_no_unknown", het_est = "stan")
+generate_visuals("hospitalisation", "LogisticRegression", suffix = "_no_unknown", het_est = "stan")
+
+#%%
+#No unknown visuals
+generate_visuals("1997type", "LogisticRegression", suffix = "_no_narvaez", het_est = "stan")
+generate_visuals("1997type", "LogisticRegression", suffix = "_no_sabchareon", het_est = "stan")
+generate_visuals("1997type", "LogisticRegression", suffix = "_no_fried", het_est = "stan")

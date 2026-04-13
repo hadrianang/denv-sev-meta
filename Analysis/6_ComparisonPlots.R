@@ -27,7 +27,7 @@ het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
 
 sev_class_types =  c("1997type", "2009type", "hospitalisation")
 model_names = c("LogisticRegression", "LogisticRegression_no_unknown", "FE", "NoCorr")
-
+data_suffixes = c("", "_no_unknown", "", "")
 visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, "ComparisonPlots")
 if(!dir.exists(visuals_output_dir)) {
     dir.create(visuals_output_dir, recursive = TRUE)
@@ -36,6 +36,7 @@ if(!dir.exists(visuals_output_dir)) {
 # I^2 Comparison plot ----
 #%% I^2 Comparison 
 #First, we create a plot comparing the I^2 values across models runs + with the different estimation methods
+#This is only for the main model
 
 #Read in heterogeneity estimates from separate estimation
 curr_model_name = "LogisticRegression"
@@ -62,9 +63,6 @@ get_het_comp_df = function(curr_sev_class_type) {
 }
 curr_model_I2_ests = lapply(sev_class_types, get_het_comp_df) %>% bind_rows()
 
-    
-
-#%%
 I2_est_plot = curr_model_I2_ests %>% 
     ggplot(aes(x = Scenario, y = PointEst, ymin = Lower, ymax = Upper, color = Type)) +
     geom_pointrange(position = position_dodge(width = 0.5)) + 
@@ -78,13 +76,9 @@ ggsave(I2_est_plot, filename = file.path(visuals_output_dir, "I2_Estimate_Compar
 #Next we create a plot comparing the values of p, the pooled effect size
 #%%
 
-curr_model_name = model_names[[1]]
-curr_sev_class_type = sev_class_types[[1]]
-data_suffix = ""
-
 get_pooled_effects = function(curr_model_name, curr_sev_class_type, data_suffix = "") {
     curr_model_fit = readRDS(file.path(model_output_dir, 
-                    paste0("Results_", curr_model_name, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
+                    paste0("Results_", curr_model_name, data_suffix, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
 
 
     scenario_df = readRDS(file.path(model_input_dir, paste0("data_", curr_sev_class_type, data_suffix, ".rds")))$scenario_df 
@@ -96,13 +90,14 @@ get_pooled_effects = function(curr_model_name, curr_sev_class_type, data_suffix 
     curr_p_summ = scenario_df %>% left_join(curr_p_summ %>% select(RegSeroPriorInd, PointEst, Lower, Upper), by = c("RegSeroPriorInd")) %>%
                         filter(!is.na(PointEst))
 
-    to_ret = curr_p_summ %>% select(Scenario, PointEst, Lower, Upper) %>% mutate(Model = curr_model_name, SevClass = curr_sev_class_type)
+    to_ret = curr_p_summ %>% select(Scenario, PointEst, Lower, Upper) %>% mutate(Model = paste0(curr_model_name, data_suffix), SevClass = curr_sev_class_type)
     return(to_ret)         
 }
 # pooled_effects_df = expand.grid(Model = model_names, SevClass = sev_class_types) %>% 
 #                         pmap_dfr(function(Model, SevClass) get_pooled_effects(Model, SevClass, data_suffix))
 
-pooled_effects_params = expand.grid(Model = model_names, SevClass = sev_class_types) %>% mutate(data_suffix = ifelse(Model == "LogisticRegression_no_unknown", "_no_unknown", ""))
+pooled_effects_params = expand.grid(Model = model_names, SevClass = sev_class_types, stringsAsFactors = FALSE) %>% mutate(data_suffix = ifelse(Model == "LogisticRegression_no_unknown", "_no_unknown", "")) %>% 
+                            mutate(Model = ifelse(Model == "LogisticRegression_no_unknown", "LogisticRegression", Model))
 
 pooled_effects_df = pooled_effects_params %>% pmap_dfr(function(Model, SevClass, data_suffix) get_pooled_effects(Model, SevClass, data_suffix))
 
@@ -117,7 +112,6 @@ pooled_effects_plot = pooled_effects_df %>%
 ggsave(pooled_effects_plot, filename = file.path(visuals_output_dir, "Pooled_Effects_Comparison.png"), width = 14, height = 8)
 pooled_effects_plot
 
-
 #%% SeroPrior Comparison Plot
 
 gen_or_comp_df = function(curr_model_name, curr_sev_class_type, data_suffix = "") {
@@ -125,7 +119,7 @@ gen_or_comp_df = function(curr_model_name, curr_sev_class_type, data_suffix = ""
     scenario_df = curr_model_input$scenario_df 
     char_mat_guide = curr_model_input$char_mat_guide
     curr_model_fit = readRDS(file.path(model_output_dir, 
-                    paste0("Results_", curr_model_name, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
+                    paste0("Results_", curr_model_name, data_suffix, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
 
     ref_region = curr_model_input$ref_region
     non_ref_region = ifelse(ref_region == "Asia", "Americas", "Asia")
@@ -179,11 +173,14 @@ gen_or_comp_df = function(curr_model_name, curr_sev_class_type, data_suffix = ""
                         mutate(DispVal = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper),
                             LogDispVal = sprintf("%.2f [%.2f to %.2f]", LogPointEst, LogLower, LogUpper))
 
-    to_ret = sero_prior_mat_vis %>% mutate(SevClass = curr_sev_class_type, Model = curr_model_name)
+    to_ret = sero_prior_mat_vis %>% mutate(SevClass = curr_sev_class_type, Model = paste0(curr_model_name, data_suffix))
     return(to_ret)
 }
 
-or_params_df = expand.grid(Model = model_names, SevClass = sev_class_types) %>% mutate(data_suffix = ifelse(Model == "LogisticRegression_no_unknown", "_no_unknown", ""))
+or_params_df = expand.grid(Model = model_names, SevClass = sev_class_types, stringsAsFactors = FALSE) %>% 
+                        mutate(data_suffix = ifelse(Model == "LogisticRegression_no_unknown", "_no_unknown", "")) %>%
+                        mutate(Model = ifelse(Model == "LogisticRegression_no_unknown", "LogisticRegression", Model))
+  
 or_comparison_df = or_params_df %>% pmap_dfr(function(Model, SevClass, data_suffix) gen_or_comp_df(Model, SevClass, data_suffix))
 
 #%%
@@ -287,8 +284,6 @@ save_plot(or_plot_hosp, file.path(visuals_output_dir, "OR_Comparison_Hospitalise
 
 #%%
 #Plotting prediction intervals versus means
-
-
 curr_model_name = model_names[[1]]
 curr_sev_class_type = sev_class_types[[1]]
 data_suffix = ""
@@ -331,3 +326,51 @@ for(curr_model in rand_model_names) {
         facet_wrap(~SevClass, scales = "free_y") + ggtitle(paste0("Mean vs. Prediction Interval Comparison - ", curr_model))
     ggsave(curr_interval_plot, filename = file.path(visuals_output_dir, paste0("Interval_Comparison_", curr_model, ".png")), width = 14, height = 8)
 }
+
+#%%
+#Comparing results when excluding influential studies
+#First, comparing the pooled meta-analytic estimates 
+curr_model_name = model_names[[1]]
+curr_sev_class_type = sev_class_types[[1]]
+data_suffix = "no_narvaez"
+gen_influential_studies_p_df = function(curr_model_name, curr_sev_class_type, data_suffix = "") {
+    curr_model_fit = readRDS(file.path(model_output_dir, 
+                        paste0("Results_", curr_model_name, data_suffix, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
+
+
+    scenario_df = readRDS(file.path(model_input_dir, paste0("data_", curr_sev_class_type,  data_suffix, ".rds")))$scenario_df 
+    #Get the pooled effect values in p 
+    curr_p_summ = summary(curr_model_fit, pars = "p")$summary %>% data.frame %>% mutate(RegSeroPriorInd = 1:nrow(.)) %>%
+                        rename(PointEst = mean, Lower = X2.5., Upper = X97.5.)
+    curr_p_summ = scenario_df %>% left_join(curr_p_summ %>% select(RegSeroPriorInd, PointEst, Lower, Upper), by = c("RegSeroPriorInd")) %>%
+                        filter(!is.na(PointEst))
+
+    dataset_name = ifelse(data_suffix == "", "Full Dataset", data_suffix)
+    curr_p_summ = curr_p_summ %>% select(Scenario, PointEst, Lower, Upper) %>% mutate(Model = curr_model_name, SevClass = curr_sev_class_type, DataSet = dataset_name)
+    return(curr_p_summ)         
+}
+
+influential_studies_p_params = data.frame(data_suffix = c("", "_no_narvaez", "_no_sabchareon", "_no_fried", "_no_unknown")) %>% 
+                                            mutate(SevClass = "1997type", Model = "LogisticRegression")
+#influential_studies_p_params = influential_studies_p_params %>% rbind(data.frame(data_suffix = "", SevClass = "1997type", Model = "LogisticRegression_no_unknown"))
+influential_studies_p_df = influential_studies_p_params %>% pmap_dfr(function(Model, SevClass, data_suffix) gen_influential_studies_p_df(Model, SevClass, data_suffix))
+
+influential_studies_p_plot = influential_studies_p_df %>%
+    ggplot(aes(x = Scenario, y = PointEst, ymin = Lower, ymax = Upper, color = DataSet)) +
+    geom_pointrange(position = position_dodge(width = 0.7)) + 
+    theme(text = element_text(size = 12), legend.position = "top", legend.justification = "left") + 
+    coord_flip()
+ggsave(influential_studies_p_plot, filename = file.path(visuals_output_dir, paste0("Influential_Studies_P_Comparison_", curr_model, ".png")), width = 10, height = 15)
+
+#%%
+influential_studies_or_df = influential_studies_p_params %>% pmap_dfr(function(Model, SevClass, data_suffix) gen_or_comp_df(Model, SevClass, data_suffix))
+influential_studies_or_df  = influential_studies_or_df %>% mutate(Model = ifelse(Model == "LogisticRegression", "LogisticRegression", 
+                                        ifelse(Model == "LogisticRegression_no_narvaez", "Excl. Narvaez", 
+                                            ifelse(Model == "LogisticRegression_no_sabchareon", "Excl. Sabchareon",
+                                                ifelse(Model == "LogisticRegression_no_fried", "Excl. Fried",
+                                                    ifelse(Model == "LogisticRegression_no_unknown", "Excl. Unknown", Model))))))
+
+or_plot_influential = gen_or_comp_plot(influential_studies_or_df, "1997type")
+
+
+save_plot(or_plot_influential, file.path(visuals_output_dir, "OR_Comparison_Influential.png"), width = 16, height = 8, units = "in", res = 300)

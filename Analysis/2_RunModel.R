@@ -75,7 +75,14 @@ orig_1997_no_unknown = fit_model("1997type", "LogisticRegressionModel", iter = 1
 orig_2009_no_unknown = fit_model("2009type", "LogisticRegressionModel", iter = 10000, chains = 4, data_suffix = "_no_unknown")
 orig_hospitalisation_no_unknown = fit_model("hospitalisation", "LogisticRegressionModel", iter = 10000, chains = 4, data_suffix = "_no_unknown")
 
+orig_1997_no_narvaez = fit_model("1997type", "LogisticRegressionModel", iter = 10000, chains = 4, data_suffix = "_no_narvaez")
+orig_1997_no_sabchareon = fit_model("1997type", "LogisticRegressionModel", iter = 10000, chains = 4, data_suffix = "_no_sabchareon")
+orig_1997_no_fried = fit_model("1997type", "LogisticRegressionModel", iter = 10000, chains = 4, data_suffix = "_no_fried")
 
+curr_sev_class_type = "1997type"
+saveRDS(orig_1997_no_narvaez, file.path(output_dir, paste0("Results_LogisticRegression_no_narvaez_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_", curr_sev_class_type, ".rds")))
+saveRDS(orig_1997_no_sabchareon, file.path(output_dir, paste0("Results_LogisticRegression_no_sabchareon_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_", curr_sev_class_type, ".rds")))
+saveRDS(orig_1997_no_fried, file.path(output_dir, paste0("Results_LogisticRegression_no_fried_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_", curr_sev_class_type, ".rds")))
 #Loop through groups of runs and output the fitted results to files 
 orig_fits = c(orig_1997, orig_2009, orig_hospitalisation)
 fe_fits = c(fe_1997, fe_2009, fe_hospitalisation)
