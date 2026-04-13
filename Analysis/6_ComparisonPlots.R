@@ -68,7 +68,7 @@ curr_model_I2_ests = lapply(sev_class_types, get_het_comp_df) %>% bind_rows()
 I2_est_plot = curr_model_I2_ests %>% 
     ggplot(aes(x = Scenario, y = PointEst, ymin = Lower, ymax = Upper, color = Type)) +
     geom_pointrange(position = position_dodge(width = 0.5)) + 
-    theme(element_text = element_text(size = 12), legend.position = "top", legend.justification = "left") + 
+    theme(text = element_text(size = 12), legend.position = "top", legend.justification = "left") + 
     coord_flip() +
     facet_wrap(~SevClass, scales = "free_y")
 
@@ -110,7 +110,7 @@ pooled_effects_df = pooled_effects_params %>% pmap_dfr(function(Model, SevClass,
 pooled_effects_plot = pooled_effects_df %>%
     ggplot(aes(x = Scenario, y = PointEst, ymin = Lower, ymax = Upper, color = Model)) +
     geom_pointrange(position = position_dodge(width = 0.7)) + 
-    theme(element_text = element_text(size = 12), legend.position = "top", legend.justification = "left") + 
+    theme(text = element_text(size = 12), legend.position = "top", legend.justification = "left") + 
     coord_flip() +
     facet_wrap(~SevClass, scales = "free_y")
 
@@ -119,10 +119,6 @@ pooled_effects_plot
 
 
 #%% SeroPrior Comparison Plot
-
-curr_model_name = model_names[[1]]
-curr_sev_class_type = sev_class_types[[1]]
-data_suffix = ""
 
 gen_or_comp_df = function(curr_model_name, curr_sev_class_type, data_suffix = "") {
     curr_model_input = readRDS(file.path(model_input_dir, paste0("data_", curr_sev_class_type, data_suffix, ".rds")))
@@ -203,6 +199,8 @@ gen_or_comp_plot = function(or_comparison_df, curr_sev_class_type) {
         select(RowScenario, ColScenario, Model, Significance) %>%
         pivot_wider(names_from = Model, values_from = Significance) %>%
         arrange(desc(`LogisticRegression` == "Significant"), RowScenario, ColScenario)
+  
+    table_ordering = table_data %>% select(RowScenario, ColScenario) %>% mutate(OrderID = 1:nrow(.))
 
     # Get model names directly from the pivoted columns
     models = setdiff(colnames(table_data), c("RowScenario", "ColScenario"))
@@ -223,15 +221,16 @@ gen_or_comp_plot = function(or_comparison_df, curr_sev_class_type) {
     scenarios <- table_data %>% select(RowScenario, ColScenario)
 
     make_matrix = function(col) {
-    curr_to_vis %>%
-        pivot_wider(
-        id_cols = c(RowScenario, ColScenario),
-        names_from = Model,
-        values_from = {{ col }}
-        ) %>%
-        arrange(RowScenario, ColScenario) %>%
-        select(all_of(models)) %>%
-        as.matrix()
+        curr_to_vis %>% 
+            pivot_wider(
+            id_cols = c(RowScenario, ColScenario),
+            names_from = Model,
+            values_from = {{ col }}
+            ) %>%
+            left_join(table_ordering, by = c("RowScenario", "ColScenario")) %>%
+            arrange(OrderID) %>%
+            select(all_of(models)) %>%
+            as.matrix()
     }
 
     mean_mat  = make_matrix(PointEst)
@@ -285,3 +284,50 @@ or_plot_hosp = gen_or_comp_plot(or_comparison_df, "hospitalisation")
 save_plot(or_plot_1997, file.path(visuals_output_dir, "OR_Comparison_1997.png"), width = 14, height = 8, units = "in", res = 300)
 save_plot(or_plot_2009, file.path(visuals_output_dir, "OR_Comparison_2009.png"), width = 14, height = 8, units = "in", res = 300)
 save_plot(or_plot_hosp, file.path(visuals_output_dir, "OR_Comparison_Hospitalised.png"), width = 14, height = 8, units = "in", res = 300)
+
+#%%
+#Plotting prediction intervals versus means
+
+
+curr_model_name = model_names[[1]]
+curr_sev_class_type = sev_class_types[[1]]
+data_suffix = ""
+
+gen_interval_comp_df = function(curr_model_name, curr_sev_class_type, data_suffix = "") {
+    curr_model_fit = readRDS(file.path(model_output_dir, 
+                        paste0("Results_", curr_model_name, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
+
+
+    scenario_df = readRDS(file.path(model_input_dir, paste0("data_", curr_sev_class_type, data_suffix, ".rds")))$scenario_df 
+    #Get the pooled effect values in p 
+    curr_p_summ = summary(curr_model_fit, pars = "p")$summary %>% data.frame %>% mutate(RegSeroPriorInd = 1:nrow(.)) %>%
+                        rename(PointEst = mean, Lower = X2.5., Upper = X97.5.)
+    curr_p_summ = scenario_df %>% left_join(curr_p_summ %>% select(RegSeroPriorInd, PointEst, Lower, Upper), by = c("RegSeroPriorInd")) %>%
+                        filter(!is.na(PointEst))
+
+    curr_pred_interval_summ = summary(curr_model_fit, pars = "pred_interval_p")$summary %>% data.frame %>% mutate(ScenIndex = 1:nrow(.)) %>%
+                        rename(PointEst = mean, Lower = X2.5., Upper = X97.5.)
+    curr_pred_interval_summ = scenario_df %>% left_join(curr_pred_interval_summ %>% select(ScenIndex, PointEst, Lower, Upper), by = c("ScenIndex")) %>%
+                        filter(!is.na(PointEst))
+    interval_merged = curr_p_summ %>% select(Scenario, PointEst, Lower, Upper) %>% mutate(Type = "Mean") %>% 
+        rbind(curr_pred_interval_summ %>% select(Scenario, PointEst, Lower, Upper) %>% mutate(Type = "PredInterval")) %>% 
+        mutate(SevClass = curr_sev_class_type, Model = curr_model_name)
+    return(interval_merged)
+}
+
+rand_model_names = c("LogisticRegression", "LogisticRegression_no_unknown", "NoCorr")
+interval_params_df = expand.grid(Model = rand_model_names, SevClass = sev_class_types) %>% 
+                        mutate(data_suffix = ifelse(Model == "LogisticRegression_no_unknown", "_no_unknown", ""))
+interval_comparison_df = interval_params_df %>% pmap_dfr(function(Model, SevClass, data_suffix) gen_interval_comp_df(Model, SevClass, data_suffix))
+
+#%%
+for(curr_model in rand_model_names) {
+    curr_interval_comparison_df = interval_comparison_df %>% filter(Model == curr_model)
+    curr_interval_plot = curr_interval_comparison_df %>%
+        ggplot(aes(x = Scenario, y = PointEst, ymin = Lower, ymax = Upper, color = Type)) +
+        geom_pointrange(position = position_dodge(width = 0.5)) + 
+        theme(text = element_text(size = 12), legend.position = "top", legend.justification = "left") + 
+        coord_flip() +
+        facet_wrap(~SevClass, scales = "free_y") + ggtitle(paste0("Mean vs. Prediction Interval Comparison - ", curr_model))
+    ggsave(curr_interval_plot, filename = file.path(visuals_output_dir, paste0("Interval_Comparison_", curr_model, ".png")), width = 14, height = 8)
+}
