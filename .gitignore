@@ -4,3 +4,8 @@ Analysis/Model Output/*
 Analysis/Heterogeneity Estimates/*
 Analysis/Visuals Output/**
 Analysis/Model Code/*.rds
+.Rproj.user
+Analysis/Cohort Analysis/Model Inputs/*
+Analysis/Cohort Analysis/Model Outputs/*
+Analysis/Cohort Analysis/Output Visuals/**
+.Rhistory
