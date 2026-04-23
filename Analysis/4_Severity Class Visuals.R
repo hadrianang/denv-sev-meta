@@ -9,6 +9,7 @@ library(rstan)
 library(Hmisc)
 library(forestplot)
 theme_set(theme_bw())
+options(OutDec = "·")
 
 inv_logit = plogis
 logit = qlogis
@@ -157,15 +158,16 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
     scenario_df = input_data$scenario_df #%>% left_join(het_results %>% select(Scenario, I2_est), by = "Scenario")
     scenario_vis_df = scenario_df %>% left_join(p_estimates, by = "Scenario") %>% 
                         filter(!is.na(CharMatIndex)) %>% 
-                        mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) #%>%
+                        mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) %>%
+                        mutate(DispVal = str_replace_all(DispVal, "\\.", "·"), DispN = ifelse(N < 10000, as.character(N), str_replace(as.character(N), "(\\d)(?=(\\d{3})+$)", "\\1 ")))
                         #mutate(DispHet = ifelse(is.na(I2_est), "-", sprintf("%.2f%%", I2_est * 100))) %>% 
                         
-    labeltext_list = c("Scenario", "Pooled", "NumStudies", "N", "Severe", "DispVal")
+    labeltext_list = c("Scenario", "Pooled", "NumStudies", "DispN", "Severe", "DispVal")
     header_args = list(
                         Scenario = "Scenario", 
                         Pooled = "Pooling?",
                         NumStudies = "# Studies",
-                        N = "N", 
+                        DispN = "N", 
                         Severe = severe_name, 
                         DispVal = "Est. Proportion [95% CrI]"
                     )
@@ -195,6 +197,7 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
         labeltext_list = c(labeltext_list, "DispHet", "DispTau")
         header_args$DispHet = expression(I^{2})
         header_args$DispTau = expression(tau)
+        scenario_vis_df = scenario_vis_df %>% mutate(DispHet = str_replace_all(DispHet, "\\.", "·"), DispTau = str_replace_all(DispTau, "\\.", "·"))
     }
     scenario_vis_df = scenario_vis_df %>% mutate(Pooled = ifelse(Inclusion == "Included", "Pooled", "Not Pooled")) 
 
@@ -205,7 +208,7 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
         select(all_of(labeltext_list))
     #Generate a forest plot specifically for this severity class
     options(repr.plot.width = 15, repr.plot.height = 13)
-    scenario_plot = scenario_vis_df %>% arrange(Scenario) %>%
+    scenario_plot = scenario_vis_df %>% arrange(Scenario) %>% #Add a space in multiples of 3 digits
         forestplot(labeltext = label_df,
                     mean = PointEst, lower = Lower, upper = Upper,
                     xticks = seq(0, 1, by = 0.2), ci.vertices = TRUE, boxsize = 0.2,
@@ -245,7 +248,9 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
     ref_region_label = data.frame(Label = paste0("Versus ", ref_region), PointEst = NA, Lower = NA, Upper  = NA, LogPointEst = NA, LogLower = NA, LogUpper = NA, DispVal = NA, LogDispVal = NA)
     beta_or_vis_df = beta_or_est %>% filter(Label != "Intercept") %>% 
                         mutate(DispVal = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper)) %>% 
-                        mutate(LogDispVal = sprintf("%.2f [%.2f to %.2f]", LogPointEst, LogLower, LogUpper))
+                        mutate(LogDispVal = sprintf("%.2f [%.2f to %.2f]", LogPointEst, LogLower, LogUpper)) %>% 
+                        mutate(DispVal = str_replace_all(DispVal, "\\.", "·")) %>%
+                        mutate(LogDispVal = str_replace_all(LogDispVal, "\\.", "·"))
 
     or_seroexp_part = beta_or_vis_df %>% filter(Label != non_ref_region) %>% mutate(Label = paste0("     ", Label))
     or_region_part = beta_or_vis_df %>% filter(Label == non_ref_region)%>% mutate(Label = paste0("     ", Label))
@@ -257,7 +262,8 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
                                             LogDispVal = ifelse(((LogLower > 0) | (LogUpper < 0)), paste0(LogDispVal, "*"), LogDispVal))
 
     options(repr.plot.width = 10, repr.plot.height = 10)
-    or_versus_ref_plot = beta_or_vis_df %>%forestplot(labeltext = c(Label, DispVal), zero = 0,
+    or_versus_ref_plot = beta_or_vis_df %>% 
+                    forestplot(labeltext = c(Label, DispVal), zero = 0,
                     mean = LogPointEst, lower = LogLower, upper = LogUpper,
                     xticks = seq(-5, 5, by = 1), ci.vertices = TRUE, boxsize = 0.2,
                     align = c("l", "l"), graphwidth = unit(2.2, "in"), xlab = "Est. Log Odds Ratio [95% CrI]"
@@ -314,7 +320,9 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
                         mutate(Significance = ifelse(((Lower > 1) | (Upper < 1)),"Significant", "Not Significant")) %>% #Check for significant OR   
                         arrange(desc(Significance), desc(PointEst)) %>% 
                         mutate(DispVal = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper),
-                            LogDispVal = sprintf("%.2f [%.2f to %.2f]", LogPointEst, LogLower, LogUpper))
+                            LogDispVal = sprintf("%.2f [%.2f to %.2f]", LogPointEst, LogLower, LogUpper)) %>% 
+                        mutate(DispVal = str_replace_all(DispVal, "\\.", "·"),
+                               LogDispVal = str_replace_all(LogDispVal, "\\.", "·"))
     sero_prior_mat_vis
 
     # %%

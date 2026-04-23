@@ -9,6 +9,7 @@ library(Hmisc)
 library(forestplot)
 library(readxl)
 theme_set(theme_bw())
+options(OutDec = "·")
 
 inv_logit = plogis
 logit = qlogis
@@ -110,14 +111,16 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
 						mutate(DispHet = ifelse(is.na(I2_est), "-", sprintf("%.2f%%", I2_est * 100))) %>% select(-I2_est)
 		}
 		#Join the tau estimates to the scenario_df then remvoe the ScenIndex column to simplify
-		scenario_df = scenario_df %>% left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex") 
+		scenario_df = scenario_df %>% left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex")
+		scenario_df = scenario_df %>% mutate(DispHet = str_replace_all(DispHet, "\\.", "·"), DispTau = str_replace_all(DispTau, "\\.", "·"))
 	}
 
     #Get scenarios and then join the p estimates to them, removing rows where we do not have an estimate
     scenario_df = scenario_df %>% 
 				left_join(p_estimates, by = "Scenario") %>% mutate(SevClass = curr_sev_class_type) %>%
 				filter(!is.na(PointEst)) %>% arrange(Scenario) %>% 
-				mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) %>% select(-ScenIndex)
+				mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) %>% select(-ScenIndex) %>%
+        mutate(DispVal = str_replace_all(DispVal, "\\.", "·"), DispN = ifelse(N < 10000, as.character(N), str_replace(as.character(N), "(\\d)(?=(\\d{3})+$)", "\\1 ")))
 
     disp_sev_class = ""
     if(curr_sev_class_type == "1997type"){
@@ -129,7 +132,7 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
     }
     #Create the header row
     header_row = data.frame(Scenario = disp_sev_class, Inclusion = NA,
-					  NumStudies = NA, Severe = NA, N = NA, PointEst = NA, 
+					  NumStudies = NA, Severe = NA, N = NA, DispN = NA, PointEst = NA, 
 					   Lower = NA, Upper = NA, DispVal = NA, #DispHet = NA, DispTau = NA,
 					  SevClass = "HEADER")
 	if (effect_type == "random"){
@@ -157,12 +160,12 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_typ
 										mutate(N = ifelse(Inclusion == "Excluded", "-", N),
 										Severe = ifelse(Inclusion == "Excluded", "-", Severe))
   
-	labeltext_list = c("Scenario", "Pooled", "NumStudies", "N", "Severe", "DispVal")
+	labeltext_list = c("Scenario", "Pooled", "NumStudies", "DispN", "Severe", "DispVal")
     header_args = list(
                         Scenario = "Scenario", 
                         Pooled = "Pooling?",
                         NumStudies = "# Studies",
-                        N = "N", 
+                        DispN = "N", 
                         Severe = "Severe", 
                         DispVal = "Est. Proportion [95% CrI]"
                     )
@@ -194,7 +197,7 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_typ
 
 	if(save_output){
 		#save_plot(merged_forest_plot, file.path(visuals_output_dir, paste0("ScenarioForest.png")), 15, 21, "in", 600)
-		save_plot_all_formats(merged_forest_plot, visuals_output_dir, "ScenarioForest", 17, 21, "in", 600)
+		save_plot_all_formats(merged_forest_plot, visuals_output_dir, "ScenarioForest", 17, 23, "in", 600)
 	}
 	#Return the merged forest df for use in the vaccine trial comparison visuals
 	return(merged_forest_df)
@@ -357,30 +360,33 @@ gen_vacc_comp_visual = function(merged_forest_df, visuals_output_dir, save_outpu
 		return(curr_data)
 	}
 	vacc_comp_vis_df = do.call(rbind, lapply(serotype_names, add_serotype_headers))
-	vacc_comp_vis_df = vacc_comp_vis_df %>% mutate(Summ = SET == "POOLED")
+	vacc_comp_vis_df = vacc_comp_vis_df %>% mutate(Summ = SET == "POOLED") %>% 
+	  mutate(DispText = str_replace_all(DispText, "\\.", "·"),
+	         DispCases = ifelse(nchar(Cases) < 5, as.character(Cases), 
+	                            str_replace(as.character(Cases), "(\\d)(?=(\\d{3})+$)", "\\1 "))) #Add a space in multiples of 3 digits
+	
 	vacc_comp_vis_df
 
 	# %%
 	options(repr.plot.width = 13, repr.plot.height = 14)
 	vacc_comp_plot = vacc_comp_vis_df %>% 
-		forestplot(labeltext = c(Scenario, Cases, Severe, DispText), is.summary = Summ, 
-				mean = PointEst, lower = Lower, upper = Upper,
-				xticks = seq(0, 1, by = 0.2), ci.vertices = TRUE, boxsize = 0.2,
-				align = c("l", "l", "l", "r", "r", "l"), graphwidth = unit(1.8, "in"), 
-				) |>
-		fp_add_lines(h_2 = gpar(lty = 2)) |>
-		fp_set_style(box = "royalblue", line = gpar(col = "darkblue"), summary = "royalblue",
-				txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1))) |>
-		fp_add_header(
-					Scenario = "Scenario",
-					Cases = "N", 
-					Severe = "Hospitalised", 
-					DispText = "Proportion [95% CrI/CI]") |>
-		fp_set_zebra_style("#EFEFEF")
-
+	  forestplot(labeltext = c(Scenario, DispCases, Severe, DispText), is.summary = Summ, 
+	             mean = PointEst, lower = Lower, upper = Upper,
+	             xticks = seq(0, 1, by = 0.2), ci.vertices = TRUE, boxsize = 0.2,
+	             align = c("l", "l", "l", "r", "r", "l"), graphwidth = unit(1.8, "in"), 
+	  ) |>
+	  fp_add_lines(h_2 = gpar(lty = 2)) |>
+	  fp_set_style(box = "royalblue", line = gpar(col = "darkblue"), summary = "royalblue",
+	               txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1))) |>
+	  fp_add_header(
+	    Scenario = "Scenario",
+	    DispCases = "N", 
+	    Severe = "Hospitalised", 
+	    DispText = "Proportion [95% CrI/CI]") |>
+	  fp_set_zebra_style("#EFEFEF")
+	
 	#save_plot(vacc_comp_plot, file.path(visuals_output_dir, paste0("Vacc Placebo Comp.png")), 13, 14, "in", 600)
 	save_plot_all_formats(vacc_comp_plot, visuals_output_dir, "Vacc Placebo Comp", 13, 14, "in", 600)
-
 }
 
 # Results Per Region and Country ----
