@@ -338,7 +338,7 @@ gen_vacc_comp_visual = function(merged_forest_df, visuals_output_dir, save_outpu
 	vacc_dir = file.path(base_dir, "Vaccine Trial Data")
 	vacc_data_m57_sl = read_excel(file.path(vacc_dir, "Month57DataSriLanka.xlsx"))
 	vacc_data_m57_sl = vacc_data_m57_sl %>% mutate(Scenario = paste0(Serotype, " ", Scope, " (Month 57)"), SET = "Month 57", TYPE = "DATA")
-	vacc_data_m57_sl_bin = binconf(x = vacc_data_m57_sl$Hospitalised, n = vacc_data_m57_sl$VCD)
+	vacc_data_m57_sl_bin = binconf(x = vacc_data_m57_sl$Hospitalised, n = vacc_data_m57_sl$VCD, method = "exact")
 	vacc_data_m57_sl = vacc_data_m57_sl %>% cbind(vacc_data_m57_sl_bin) 
 	vacc_data_m57_sl = vacc_data_m57_sl %>% select(-Scope) %>% rename(Cases = VCD, Severe = Hospitalised)
 

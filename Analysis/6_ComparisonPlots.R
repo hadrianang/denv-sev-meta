@@ -203,7 +203,7 @@ gen_or_comp_plot = function(or_comparison_df, curr_sev_class_type) {
     models = setdiff(colnames(table_data), c("RowScenario", "ColScenario"))
 
     # Build header from actual model names
-    header = c("Row Scenario", "Col Scenario", models)
+    header = c("Numerator", "Denominator", models)
 
     # Build table text
     table_text <- rbind(
