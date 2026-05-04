@@ -54,7 +54,7 @@ gen_diag_plots_tables = function(model_name, suffix, curr_sev_class_type, effect
     all_pars = main_pars
 	
     main_traceplot = traceplot(curr_model_fit, pars = main_pars) + 
-		theme(legend.position = "top", legend.justification = "left")
+		theme(axis.text.x = element_text(angle = 90, size = 6), legend.position = "top", legend.justification = "left")
 
 	ggsave(main_traceplot, filename = file.path(traceplot_output_dir, paste0("Traceplot_MainPars_", curr_sev_class_type, ".png")), 
 				width = 12, height = 8, units = "in", dpi = 300)
@@ -63,7 +63,7 @@ gen_diag_plots_tables = function(model_name, suffix, curr_sev_class_type, effect
 		eps_pars = c("eps_vals")	
         all_pars = c(all_pars, eps_pars)
 		eps_traceplot = traceplot(curr_model_fit, pars = eps_pars) + 
-			theme(legend.position = "top", legend.justification = "left")
+			theme(axis.text.x = element_text(angle = 90, size = 6), legend.position = "top", legend.justification = "left")
 		
 		ggsave(eps_traceplot, filename = file.path(traceplot_output_dir, paste0("Traceplot_Eps_", curr_sev_class_type, ".png")), 
 			width = 16, height = 18, units = "in", dpi = 300)
@@ -79,7 +79,8 @@ gen_diag_plots_tables = function(model_name, suffix, curr_sev_class_type, effect
 
 	}    
     #Generates tables with the parameter estimates, ESS, and Rhat values
-    par_ests = summary(curr_model_fit, pars = all_pars)$summary %>% data.frame() %>%
+    output_pars = c(all_pars, "p", "lp__")
+    par_ests = summary(curr_model_fit, pars = output_pars)$summary %>% data.frame() %>%
                     select(mean, X2.5., X97.5., sd, se_mean, n_eff, Rhat)
     par_ests = par_ests %>% select(mean, X2.5., X97.5., sd, se_mean, n_eff, Rhat) %>% 
                     rename(Mean = mean, `2.5%` = X2.5., `97.5%` = X97.5., SD = sd, SE_Mean = se_mean, ESS = n_eff, Rhat = Rhat)

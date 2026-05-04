@@ -158,6 +158,7 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_typ
 	merged_forest_df = merged_forest_df %>% mutate(Pooled = ifelse(Inclusion == "Included", "Pooled", 
 									ifelse(Inclusion == "Excluded", "Not Pooled", NA))) %>% 
 										mutate(N = ifelse(Inclusion == "Excluded", "-", N),
+										DispN = ifelse(Inclusion == "Excluded", "-", DispN),
 										Severe = ifelse(Inclusion == "Excluded", "-", Severe))
   
 	labeltext_list = c("Scenario", "Pooled", "NumStudies", "DispN", "Severe", "DispVal")

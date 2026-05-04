@@ -379,11 +379,24 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
     # Scenario Forests ----
     # In this section, we make individual forest plots for each of the scenarios where we pool data.
     # %%
+
+    severe_name = "Severe"
+    if(sev_class_type == "1997type"){
+        severe_name = "DHF/DSS"
+    }else if(sev_class_type == "2009type"){
+        severe_name = "SD"
+    }else{
+        severe_name = "Hospitalised"
+    }
+
     theta_df = summary(model_results, pars = "theta")$summary %>% data.frame %>% 
                     select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.)
 
     outcome_ests = outcome_df %>% cbind(theta_df) %>% 
-                    mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper))
+                    mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) %>% 
+                    mutate(DispVal = str_replace_all(DispVal, "\\.", "·")) %>% 
+                    mutate(CovidenceID = ifelse(CovidenceID == "#9", "#9 - WHO 1987", CovidenceID)) %>% 
+                    mutate(Citation = sub("^#\\d+\\s+-\\s+", "", CovidenceID))
 
     inc_scenarios = scenario_vis_df %>% filter(Inclusion != "Excluded")
 
@@ -393,7 +406,7 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
         curr_scen_outcomes = outcome_ests %>% filter(Scenario == curr_scen)
         options(repr.plot.width = 13, repr.plot.height = nrow(curr_scen_outcomes))
         curr_scenario_plot = curr_scen_outcomes %>%
-                        forestplot(labeltext = c(CovidenceID, Scenario, N, Severe, DispVal),
+                        forestplot(labeltext = c(Citation, Scenario, N, Severe, DispVal),
                         clip = c(-axis_lim, axis_lim), 
                         mean = PointEst, lower = Lower, upper = Upper,
                         xticks = seq(0, 1, by = 0.2), 
@@ -404,17 +417,17 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
             fp_set_style(box = "royalblue", line = gpar(col = "darkblue"), summary = "royalblue",
                         txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1))) |>
             fp_add_header(
-                            CovidenceID = "CovidenceID", 
+                            Citation = "Study", 
                             Scenario = "Scenario", 
                             N = "N",
-                            Severe = "Severe",
+                            Severe = severe_name,
                             DispVal = "Est. Proportion [95% CrI]"
             ) |>  
             fp_append_row(
                     mean = curr_row %>% pull(PointEst),
                     lower = curr_row %>% pull(Lower),
                     upper = curr_row %>% pull(Upper),
-                    CovidenceID = "Summary",
+                    Citation = "Summary",
                     DispVal = curr_row %>% pull(DispVal),
                     is.summary = TRUE
             ) |>

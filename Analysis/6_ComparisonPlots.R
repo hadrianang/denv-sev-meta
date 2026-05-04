@@ -184,7 +184,7 @@ or_params_df = expand.grid(Model = model_names, SevClass = sev_class_types, stri
 or_comparison_df = or_params_df %>% pmap_dfr(function(Model, SevClass, data_suffix) gen_or_comp_df(Model, SevClass, data_suffix))
 
 #%%
-gen_or_comp_plot = function(or_comparison_df, curr_sev_class_type) {
+gen_or_comp_plot = function(or_comparison_df, curr_sev_class_type, use_model_column = FALSE, main_name = "LogisticRegression") {
     or_to_vis_df = or_comparison_df
     #Optionally filter out the unknown scenarios
     or_to_vis_df = or_to_vis_df %>% filter(!grepl("Unknown", RowScenario) & !grepl("Unknown", ColScenario))
@@ -195,15 +195,19 @@ gen_or_comp_plot = function(or_comparison_df, curr_sev_class_type) {
     table_data = curr_to_vis %>% 
         select(RowScenario, ColScenario, Model, Significance) %>%
         pivot_wider(names_from = Model, values_from = Significance) %>%
-        arrange(desc(`LogisticRegression` == "Significant"), RowScenario, ColScenario)
+        arrange(desc(.data[[main_name]] == "Significant"), RowScenario, ColScenario)
   
     table_ordering = table_data %>% select(RowScenario, ColScenario) %>% mutate(OrderID = 1:nrow(.))
 
     # Get model names directly from the pivoted columns
     models = setdiff(colnames(table_data), c("RowScenario", "ColScenario"))
-
     # Build header from actual model names
-    header = c("Numerator", "Denominator", models)
+    if (use_model_column) {
+        model_labels = models
+    }else{ #If we do not use the model column, we just use these hard coded values
+        model_labels = c("Main", "Excl. Unknown", "Fixed Effects", "No Correlation")
+    }
+    header = c("Numerator", "Denominator", model_labels)
 
     # Build table text
     table_text <- rbind(
@@ -364,13 +368,13 @@ ggsave(influential_studies_p_plot, filename = file.path(visuals_output_dir, past
 
 #%%
 influential_studies_or_df = influential_studies_p_params %>% pmap_dfr(function(Model, SevClass, data_suffix) gen_or_comp_df(Model, SevClass, data_suffix))
-influential_studies_or_df  = influential_studies_or_df %>% mutate(Model = ifelse(Model == "LogisticRegression", "LogisticRegression", 
+influential_studies_or_df  = influential_studies_or_df %>% mutate(Model = ifelse(Model == "LogisticRegression", "Main", 
                                         ifelse(Model == "LogisticRegression_no_narvaez", "Excl. Narvaez", 
                                             ifelse(Model == "LogisticRegression_no_sabchareon", "Excl. Sabchareon",
                                                 ifelse(Model == "LogisticRegression_no_fried", "Excl. Fried",
                                                     ifelse(Model == "LogisticRegression_no_unknown", "Excl. Unknown", Model))))))
 
-or_plot_influential = gen_or_comp_plot(influential_studies_or_df, "1997type")
+or_plot_influential = gen_or_comp_plot(influential_studies_or_df, "1997type", use_model_column = TRUE, main_name = "Main")
 
 
 save_plot(or_plot_influential, file.path(visuals_output_dir, "OR_Comparison_Influential.png"), width = 16, height = 8, units = "in", res = 300)
