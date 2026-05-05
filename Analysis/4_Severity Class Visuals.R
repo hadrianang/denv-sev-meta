@@ -50,7 +50,6 @@ het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
 
 
 
-
 #Code should be run for each of the severity classifications
 sev_class_types = c("1997type", "2009type", "hospitalisation")
 model_names = c("LogisticRegression", "FE", "NoCorr")
@@ -159,7 +158,10 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
     scenario_vis_df = scenario_df %>% left_join(p_estimates, by = "Scenario") %>% 
                         filter(!is.na(CharMatIndex)) %>% 
                         mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) %>%
-                        mutate(DispVal = str_replace_all(DispVal, "\\.", "·"), DispN = ifelse(N < 10000, as.character(N), str_replace(as.character(N), "(\\d)(?=(\\d{3})+$)", "\\1 ")))
+                        mutate(DispVal = str_replace_all(DispVal, "\\.", "·"), DispN = ifelse(N < 10000, as.character(N), str_replace(as.character(N), "(\\d)(?=(\\d{3})+$)", "\\1 "))) %>% 
+                        mutate(N = ifelse(Inclusion == "Excluded", "-", N),
+										DispN = ifelse(Inclusion == "Excluded", "-", DispN),
+										Severe = ifelse(Inclusion == "Excluded", "-", Severe))
                         #mutate(DispHet = ifelse(is.na(I2_est), "-", sprintf("%.2f%%", I2_est * 100))) %>% 
                         
     labeltext_list = c("Scenario", "Pooled", "NumStudies", "DispN", "Severe", "DispVal")

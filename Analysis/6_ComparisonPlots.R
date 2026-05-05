@@ -184,12 +184,16 @@ or_params_df = expand.grid(Model = model_names, SevClass = sev_class_types, stri
 or_comparison_df = or_params_df %>% pmap_dfr(function(Model, SevClass, data_suffix) gen_or_comp_df(Model, SevClass, data_suffix))
 
 #%%
-gen_or_comp_plot = function(or_comparison_df, curr_sev_class_type, use_model_column = FALSE, main_name = "LogisticRegression") {
+gen_or_comp_plot = function(or_comparison_df, curr_sev_class_type, use_model_column = FALSE, main_name = "LogisticRegression", filter_list = NULL) {
     or_to_vis_df = or_comparison_df
     #Optionally filter out the unknown scenarios
     or_to_vis_df = or_to_vis_df %>% filter(!grepl("Unknown", RowScenario) & !grepl("Unknown", ColScenario))
     #We can create a separate plot for each SevClass type
     curr_to_vis = or_to_vis_df %>% filter(SevClass == curr_sev_class_type) %>% mutate(Comparison = paste0(RowScenario, " vs. ", ColScenario))
+
+    if(!is.null(filter_list)) {
+        curr_to_vis = curr_to_vis %>% filter(Model %in% filter_list)
+    }
     # Build the header row
     # Build table rows - one row per unique scenario combination
     table_data = curr_to_vis %>% 
@@ -205,7 +209,11 @@ gen_or_comp_plot = function(or_comparison_df, curr_sev_class_type, use_model_col
     if (use_model_column) {
         model_labels = models
     }else{ #If we do not use the model column, we just use these hard coded values
-        model_labels = c("Main", "Excl. Unknown", "Fixed Effects", "No Correlation")
+        if (!is.null(filter_list)) {
+            model_labels = names(filter_list)
+        } else {
+            model_labels = c("Main", "Excl. Unknown", "Fixed Effects", "No Correlation")
+        }
     }
     header = c("Numerator", "Denominator", model_labels)
 
@@ -285,6 +293,14 @@ or_plot_hosp = gen_or_comp_plot(or_comparison_df, "hospitalisation")
 save_plot(or_plot_1997, file.path(visuals_output_dir, "OR_Comparison_1997.png"), width = 14, height = 8, units = "in", res = 300)
 save_plot(or_plot_2009, file.path(visuals_output_dir, "OR_Comparison_2009.png"), width = 14, height = 8, units = "in", res = 300)
 save_plot(or_plot_hosp, file.path(visuals_output_dir, "OR_Comparison_Hospitalised.png"), width = 14, height = 8, units = "in", res = 300)
+
+
+or_plot_1997_si = gen_or_comp_plot(or_comparison_df, "1997type", filter_list = c("Main" = "LogisticRegression", "Excl. Unknown" = "LogisticRegression_no_unknown"))
+or_plot_2009_si = gen_or_comp_plot(or_comparison_df, "2009type", filter_list = c("Main" = "LogisticRegression", "Excl. Unknown" = "LogisticRegression_no_unknown"))
+or_plot_hosp_si = gen_or_comp_plot(or_comparison_df, "hospitalisation", filter_list = c("Main" = "LogisticRegression", "Excl. Unknown" = "LogisticRegression_no_unknown"))
+save_plot(or_plot_1997_si, file.path(visuals_output_dir, "OR_Comparison_1997_SI.png"), width = 12, height = 8, units = "in", res = 300)
+save_plot(or_plot_2009_si, file.path(visuals_output_dir, "OR_Comparison_2009_SI.png"), width = 12, height = 8, units = "in", res = 300)
+save_plot(or_plot_hosp_si, file.path(visuals_output_dir, "OR_Comparison_Hospitalised_SI.png"), width = 12, height = 8, units = "in", res = 300)
 
 #%%
 #Plotting prediction intervals versus means
