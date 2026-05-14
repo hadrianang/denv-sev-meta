@@ -407,8 +407,10 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
         curr_scen = curr_row$Scenario
         curr_scen_outcomes = outcome_ests %>% filter(Scenario == curr_scen)
         options(repr.plot.width = 13, repr.plot.height = nrow(curr_scen_outcomes))
+        curr_scen_outcomes = curr_scen_outcomes %>% mutate(DispCitation = ifelse(Citation == "Balmaseda 2010", "Reyes 2010",
+                                                        ifelse(Citation == "BetiErnawati 2021", "Dewi 2021", Citation)))
         curr_scenario_plot = curr_scen_outcomes %>%
-                        forestplot(labeltext = c(Citation, Scenario, N, Severe, DispVal),
+                        forestplot(labeltext = c(DispCitation, Scenario, N, Severe, DispVal),
                         clip = c(-axis_lim, axis_lim), 
                         mean = PointEst, lower = Lower, upper = Upper,
                         xticks = seq(0, 1, by = 0.2), 
@@ -419,7 +421,7 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
             fp_set_style(box = "royalblue", line = gpar(col = "darkblue"), summary = "royalblue",
                         txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1))) |>
             fp_add_header(
-                            Citation = "Study", 
+                            DispCitation = "Study", 
                             Scenario = "Scenario", 
                             N = "N",
                             Severe = severe_name,
@@ -429,7 +431,7 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
                     mean = curr_row %>% pull(PointEst),
                     lower = curr_row %>% pull(Lower),
                     upper = curr_row %>% pull(Upper),
-                    Citation = "Summary",
+                    DispCitation = "Summary",
                     DispVal = curr_row %>% pull(DispVal),
                     is.summary = TRUE
             ) |>
