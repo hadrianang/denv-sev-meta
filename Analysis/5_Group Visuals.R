@@ -67,81 +67,92 @@ sev_class_types = c("1997type", "2009type", "hospitalisation")
 # 2. Scenario Probability Visuals ----
 # Functions to generate the pooled scenario visuals
 # %%
-# curr_input_data = model_inputs[[1]]
-# curr_output_data = model_outputs[[1]]
-# curr_sev_class_type = sev_class_types[[1]]
-# #curr_het_results = het_results[[1]]
-# curr_het_results = NULL
-# effect_type = "random"
+curr_input_data = model_inputs[[1]]
+curr_output_data = model_outputs[[1]]
+curr_sev_class_type = sev_class_types[[1]]
+#curr_het_results = het_results[[1]]
+curr_het_results = NULL
+effect_type = "random"
 
 process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_class_type, curr_het_results, effect_type = "random"){
-    #Probabilities are given in the estimates of p 
-    ref_region = curr_input_data$ref_region
-    non_ref_region = ifelse(ref_region == "Asia", "Americas", "Asia")
-    ref_serotype_exposure = curr_input_data$ref_serotype_exposure
-    ref_scenario = curr_input_data$ref_scenario
-    non_ref_seroprior = curr_input_data$char_mat_guide %>% filter(CharMatIndex >0) %>% pull(SeroPriorExp) %>% as.character
-    
-    
-    scenario_labels = c(ref_scenario, 
-				    paste0(ref_region, "-", non_ref_seroprior),
-				    paste0(non_ref_region, "-", c(ref_serotype_exposure, non_ref_seroprior))
-				   )
-  
-    #Get estimates of p
-    p_estimates = summary(curr_output_data, pars = "p")$summary %>% data.frame %>% 
-				select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>% 
-				mutate(Scenario = scenario_labels)
-  
-	scenario_df = curr_input_data$scenario_df %>% select(ScenIndex, Scenario, Inclusion, NumStudies, Severe, N)
+	#Probabilities are given in the estimates of p 
+	ref_region = curr_input_data$ref_region
+	non_ref_region = ifelse(ref_region == "Asia", "Americas", "Asia")
+	ref_serotype_exposure = curr_input_data$ref_serotype_exposure
+	ref_scenario = curr_input_data$ref_scenario
+	non_ref_seroprior = curr_input_data$char_mat_guide %>% filter(CharMatIndex >0) %>% pull(SeroPriorExp) %>% as.character
 	
+	
+	scenario_labels = c(ref_scenario, 
+					paste0(ref_region, "-", non_ref_seroprior),
+					paste0(non_ref_region, "-", c(ref_serotype_exposure, non_ref_seroprior))
+					)
+
+	#Get estimates of p
+	p_estimates = summary(curr_output_data, pars = "p")$summary %>% data.frame %>% 
+			select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>% 
+			mutate(Scenario = scenario_labels)
+
+	scenario_df = curr_input_data$scenario_df %>% select(ScenIndex, Scenario, Inclusion, NumStudies, Severe, N)
+
 	if(effect_type == "random"){
 		tau_estimates = summary(curr_output_data, pars = "tau")$summary %>% data.frame %>% 
 					select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>%
 					mutate(ScenIndex = 1:nrow(.)) %>% mutate(DispTau = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper))
 					
-	
+
 		#If curr_het_results is NULL then use the I^2 estimates from Stan rather than the separate ones loaded from files
 		if(is.null(curr_het_results)){
 			curr_het_results = summary(curr_output_data, pars = "I2")$summary %>% data.frame %>% 
 						select(mean, X2.5., X97.5.) %>% mutate(ScenIndex = 1:nrow(.)) %>% mutate(DispHet = sprintf("%.2f%% [%.2f to %.2f%%]", mean * 100, X2.5. * 100, X97.5. * 100))
-			scenario_df = scenario_df %>% left_join(curr_het_results %>% select(ScenIndex, DispHet), by = "ScenIndex")
+			
+			#We compute the probability that the I^2 values are >= 75% (substantial heterogeneity per Cochrane guide)
+			curr_het_draws = rstan::extract(curr_output_data, pars = "I2")$I2	
+			prob_het_sub = colMeans(curr_het_draws >= 0.75)
+			prob_het_sub_df = data.frame(ScenIndex = 1:length(prob_het_sub), ProbHetSub = prob_het_sub) %>%
+											mutate(DispProbHetSub = sprintf("%.2f%%", ProbHetSub * 100))
+			scenario_df = scenario_df %>% left_join(curr_het_results %>% select(ScenIndex, DispHet), by = "ScenIndex") %>% 
+								left_join(prob_het_sub_df, by = "ScenIndex") %>% select(-ProbHetSub)
 		}else{
 			scenario_df = scenario_df %>% left_join(curr_het_results %>% select(Scenario, I2_est), by = "Scenario") %>%
 						mutate(DispHet = ifelse(is.na(I2_est), "-", sprintf("%.2f%%", I2_est * 100))) %>% select(-I2_est)
 		}
-		#Join the tau estimates to the scenario_df then remvoe the ScenIndex column to simplify
+		#Join the tau estimates to the scenario_df then remove the ScenIndex column to simplify
 		scenario_df = scenario_df %>% left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex")
-		scenario_df = scenario_df %>% mutate(DispHet = str_replace_all(DispHet, "\\.", "·"), DispTau = str_replace_all(DispTau, "\\.", "·"))
+		scenario_df = scenario_df %>%
+			mutate(
+				DispHet = str_replace_all(DispHet, "\\.", "·"),
+				DispTau = str_replace_all(DispTau, "\\.", "·")
+			)
 	}
 
-    #Get scenarios and then join the p estimates to them, removing rows where we do not have an estimate
-    scenario_df = scenario_df %>% 
-				left_join(p_estimates, by = "Scenario") %>% mutate(SevClass = curr_sev_class_type) %>%
-				filter(!is.na(PointEst)) %>% arrange(Scenario) %>% 
-				mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) %>% select(-ScenIndex) %>%
-        mutate(DispVal = str_replace_all(DispVal, "\\.", "·"), DispN = ifelse(N < 10000, as.character(N), str_replace(as.character(N), "(\\d)(?=(\\d{3})+$)", "\\1 ")))
+	#Get scenarios and then join the p estimates to them, removing rows where we do not have an estimate
+	scenario_df = scenario_df %>% 
+			left_join(p_estimates, by = "Scenario") %>% mutate(SevClass = curr_sev_class_type) %>%
+			filter(!is.na(PointEst)) %>% arrange(Scenario) %>% 
+			mutate(DispVal = sprintf("%.2f%% [%.2f to %.2f%%]", 100*PointEst, 100*Lower, 100*Upper)) %>% select(-ScenIndex) %>%
+			mutate(DispVal = str_replace_all(DispVal, "\\.", "·"), DispN = ifelse(N < 10000, as.character(N), str_replace(as.character(N), "(\\d)(?=(\\d{3})+$)", "\\1 ")))
 
-    disp_sev_class = ""
-    if(curr_sev_class_type == "1997type"){
-	   disp_sev_class = "1997-type"
-    }else if(curr_sev_class_type == "2009type"){
-	   disp_sev_class = "2009-type"
-    }else{
-	   disp_sev_class = "Hospitalisation"
-    }
-    #Create the header row
-    header_row = data.frame(Scenario = disp_sev_class, Inclusion = NA,
-					  NumStudies = NA, Severe = NA, N = NA, DispN = NA, PointEst = NA, 
-					   Lower = NA, Upper = NA, DispVal = NA, #DispHet = NA, DispTau = NA,
-					  SevClass = "HEADER")
+	disp_sev_class = ""
+	if(curr_sev_class_type == "1997type"){
+		disp_sev_class = "1997-type"
+	}else if(curr_sev_class_type == "2009type"){
+		disp_sev_class = "2009-type"
+	}else{
+		disp_sev_class = "Hospitalisation"
+	}
+	#Create the header row
+	header_row = data.frame(Scenario = disp_sev_class, Inclusion = NA,
+					NumStudies = NA, Severe = NA, N = NA, DispN = NA, PointEst = NA, 
+						Lower = NA, Upper = NA, DispVal = NA, #DispHet = NA, DispTau = NA,
+					SevClass = "HEADER")
 	if (effect_type == "random"){
-		header_row = header_row %>% mutate(DispHet = NA, DispTau = NA)
+		header_row = header_row %>% mutate(DispHet = NA, DispTau = NA, DispProbHetSub = NA)
 	}
-    scenario_df = rbind(header_row, scenario_df %>% mutate(Scenario = paste0("       ", Scenario))) 
-    return(scenario_df)
+	scenario_df = rbind(header_row, scenario_df %>% mutate(Scenario = paste0("       ", Scenario))) 
+	return(scenario_df)
 }
-
+# %%
 gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_types, het_results, visuals_output_dir, effect_type = "random", save_output = save_output){
 	#If het_results is NULL, we use the Stan estimated I^2 values
 	if(is.null(het_results)){
@@ -171,21 +182,22 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_typ
                         DispVal = "Est. Proportion [95% CrI]"
                     )
 	if(effect_type == "random"){
-		labeltext_list = c(labeltext_list, "DispHet", "DispTau")
+		labeltext_list = c(labeltext_list, "DispHet", "DispTau", "DispProbHetSub")
 		header_args$DispHet = expression(I^{2})
 		header_args$DispTau = expression(tau)
+		header_args$DispProbHetSub = "Prob. I² ≥ 75%"
 	}
 
     label_df = merged_forest_df %>% 
 
         select(all_of(labeltext_list))
 	
-	options(repr.plot.width = 17, repr.plot.height = 21)
+	options(repr.plot.width = 19, repr.plot.height = 21)
 	merged_forest_plot = merged_forest_df %>% 
 		forestplot(labeltext = label_df,
 				mean = PointEst, lower = Lower, upper = Upper,
 				xticks = seq(0, 1, by = 0.2), ci.vertices = TRUE, boxsize = 0.2,
-				align = c("l", "l", "l", "r", "r", "l"), graphwidth = unit(1.8, "in"), 
+				align = c("l", "l", "l", "r", "r", "l", "l"), graphwidth = unit(1.8, "in"), 
 				) |>
 		fp_add_lines(h_2 = gpar(lty = 2)) |>
 		fp_set_style(box = "royalblue", line = gpar(col = "darkblue"), summary = "royalblue",
@@ -198,7 +210,7 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_typ
 
 	if(save_output){
 		#save_plot(merged_forest_plot, file.path(visuals_output_dir, paste0("ScenarioForest.png")), 15, 21, "in", 600)
-		save_plot_all_formats(merged_forest_plot, visuals_output_dir, "ScenarioForest", 17, 23, "in", 600)
+		save_plot_all_formats(merged_forest_plot, visuals_output_dir, "ScenarioForest", 19, 23, "in", 600)
 	}
 	#Return the merged forest df for use in the vaccine trial comparison visuals
 	return(merged_forest_df)
