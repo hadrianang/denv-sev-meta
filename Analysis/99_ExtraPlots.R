@@ -1,5 +1,6 @@
 #99_ExtraPlots.R
-#The code here is primarily for generating some extra plots that we can use for our peer review response. 
+#Code here is primarily for generating extra results for the adapted Peters' regression
+#a linear regression where the dependent variable is epsilon/sigma and the predictor is 1/N.
 
 #Imports ----
 #%%
@@ -35,7 +36,7 @@ if(!dir.exists(visuals_output_dir)) {
   dir.create(visuals_output_dir, recursive = TRUE)
 }
 #%%
-#curr_sev_class_type = sev_class_types[1]
+# curr_sev_class_type = sev_class_types[1]
 curr_model_name = "LogisticRegression"
 suffix = ""
 
@@ -51,47 +52,49 @@ for(curr_sev_class_type in sev_class_types) {
     eps_vals = summary(curr_model_output, pars = "eps_vals")$summary %>% data.frame %>% rename(PointEst = mean, Lower = `X2.5.`, Upper = `X97.5.`) %>% select(PointEst, Lower, Upper)
     curr_outcome_df = curr_model_input$outcome_df %>% cbind(eps_vals)
 
-    curr_funnel_plot = curr_outcome_df %>% 
-    ggplot(aes(x = N, y = PointEst, ymin = Lower, ymax = Upper)) +
-
-        geom_pointrange() + 
-        coord_flip() + 
-        scale_x_log10() + 
-        geom_hline(yintercept = 0, linetype = "dashed", colour = "red") + 
-        stat_function(
-        fun = function(x) 1.96 * sqrt(1 / (x * global_mean * (1 - global_mean))), 
-        geom = "line", color = "red", linetype = "dotted"
-        ) +
-        stat_function(
-        fun = function(x) -1.96 * sqrt(1 / (x * global_mean * (1 - global_mean))), 
-        geom = "line", color = "red", linetype = "dotted"
-        ) + 
-        labs(title = paste("Random Effects Funnel Plot", curr_sev_class_type), x = "Sample Size (log scale)", y = "Random Effect (logit scale)") + 
-        theme_bw()
-
-    ggsave(curr_funnel_plot, filename = file.path(visuals_output_dir, paste0("FunnelPlot_", curr_sev_class_type, suffix, ".png")), width = 8, height = 6)
     #%%
     # Peter's regression: here for each posterior sample, we fit a linear regression with random effects 
     # as dependent variable and 1/n as the independent variable
 
     #Get all the posterior samples for the random effects
-    x_vals = 1/curr_outcome_df$N
-    eps_samples = extract(curr_model_output, pars = "eps_vals")$eps_vals
+    x_vals = 1/curr_outcome_df$N #The predictor is 1/N - the inverse sample size for each study
+    eps_summary = summary(curr_model_output, pars = "eps_vals")$summary %>% data.frame %>% rename(PointEst = mean, Lower = `X2.5.`, Upper = `X97.5.`) %>% select(PointEst, Lower, Upper)
+    sigma_summary = summary(curr_model_output, pars = "sigma")$summary %>% data.frame %>% rename(PointEst = mean, Lower = `X2.5.`, Upper = `X97.5.`) %>% select(PointEst, Lower, Upper)
 
-    reg_results = apply(eps_samples, 1, function(eps_sample) {
-    model_data = data.frame(eps_sample = eps_sample, x_vals = x_vals)
-    model_fit = lm(eps_sample ~ x_vals, data = model_data)
-    return(coef(model_fit))
+    eps_samples = extract(curr_model_output, pars = "eps_vals")$eps_vals #We predict the size of the random effects using inverse sample size
+    sigma_samples = extract(curr_model_output, pars = "sigma")$sigma #We predict the size of the random effects using inverse sample size
+
+    #to do a weighted linear regression, we divide each epsilon by the appropriate sigma
+    #We can do this by labelling each outcome with the index of the sigma we need (join outcome_df with scenario_df) 
+    eps_matcher = curr_model_input$outcome_df
+    curr_scenario_df = curr_model_input$scenario_df #ScenIndex will give the index of sigma needed for each epsilon
+    eps_matcher = eps_matcher %>% left_join(curr_scenario_df %>% select(Scenario, ScenIndex), by = "Scenario") %>% mutate(EpsIndex = 1:nrow(.))
+
+    eps_samples_weighted = eps_samples
+    se_samples = matrix(NA, nrow = nrow(eps_samples), ncol = ncol(eps_samples))
+
+    for(i in 1:nrow(eps_matcher)) {
+        eps_ind = eps_matcher$EpsIndex[i]
+        sigma_ind = eps_matcher$ScenIndex[i]
+        eps_samples_weighted[, eps_ind] = eps_samples[, eps_ind] / sigma_samples[, sigma_ind]
+        se_samples[, eps_ind] = sigma_samples[, sigma_ind]
+    }
+
+    #Regression per epsilon/sigma sample
+    reg_results = apply(eps_samples_weighted, 1, function(eps_sample) {
+        model_data = data.frame(eps_sample = eps_sample, x_vals = x_vals)
+        model_fit = lm(eps_sample ~ x_vals, data = model_data)
+        return(coef(model_fit))
     })
 
     res_mat = t(reg_results) %>% data.frame %>% rename(Intercept = `X.Intercept.`, Slope = x_vals)
 
     n_seq = seq(0, max(x_vals), length.out = 100)
     reg_lines = apply(res_mat, 1, function(coefs) {
-    intercept = coefs["Intercept"]
-    slope = coefs["Slope"]
-    y_vals = intercept + slope * n_seq
-    return(y_vals = y_vals)
+        intercept = coefs["Intercept"]
+        slope = coefs["Slope"]
+        y_vals = intercept + slope * n_seq
+        return(y_vals = y_vals)
     })
     shade_df = data.frame(n_seq = n_seq, 
                         low_shade = apply(reg_lines, 1, function(line) quantile(line, probs = 0.025)), 
@@ -100,15 +103,19 @@ for(curr_sev_class_type in sev_class_types) {
 
     regression_plot = curr_outcome_df %>% 
     ggplot(aes(x = 1/N)) +
-    geom_pointrange(aes(y = PointEst, ymin = Lower, ymax = Upper)) + 
-    geom_line(data = shade_df, aes(x = n_seq, y = mean_shade), color = "red") + 
-    geom_ribbon(data = shade_df, aes(x = n_seq, ymin = low_shade, ymax = up_shade), fill = "red", alpha = 0.2) + 
-    labs(title = paste("Reciprocal Sample Size Versus Random Effects", curr_sev_class_type), x = "1/Sample Size", y = "Random Effect (logit scale)") + 
-    theme_bw()
-    ggsave(regression_plot, filename = file.path(visuals_output_dir, paste0("RegressionPlot_", curr_sev_class_type, suffix, ".png")), width = 8, height = 6)
+        geom_pointrange(aes(y = PointEst, ymin = Lower, ymax = Upper)) + 
+        geom_line(data = shade_df, aes(x = n_seq, y = mean_shade), color = "red") + 
+        geom_ribbon(data = shade_df, aes(x = n_seq, ymin = low_shade, ymax = up_shade), fill = "red", alpha = 0.2) + 
+        labs(title = paste("Reciprocal Sample Size Versus Random Effects", curr_sev_class_type), x = "1/Sample Size", y = "Random Effect (logit scale)") + 
+        theme_bw()
 
     #Output summary stats from the regression
     reg_summary = res_mat %>% summarise(Intercept_Mean = mean(Intercept), Intercept_Lower = quantile(Intercept, probs = 0.025), Intercept_Upper = quantile(Intercept, probs = 0.975), 
                                         Slope_Mean = mean(Slope), Slope_Lower = quantile(Slope, probs = 0.025), Slope_Upper = quantile(Slope, probs = 0.975))
-    write.csv(reg_summary, file = file.path(visuals_output_dir, paste0("RegressionSummary_", curr_sev_class_type, suffix, ".csv")), row.names = FALSE)
+
+
+    # write.csv(reg_summary, file = file.path(visuals_output_dir, paste0("WeightedRegressionSummary_", curr_sev_class_type, suffix, ".csv")), row.names = FALSE)
+    # ggsave(curr_funnel_plot, filename = file.path(visuals_output_dir, paste0("FunnelPlot_", curr_sev_class_type, suffix, ".png")), width = 8, height = 6)
+    # ggsave(regression_plot, filename = file.path(visuals_output_dir, paste0("WeightedRegressionPlot_", curr_sev_class_type, suffix, ".png")), width = 8, height = 6)
 }
+
