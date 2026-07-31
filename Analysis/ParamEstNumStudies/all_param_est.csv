@@ -1,0 +1,15 @@
+"Param","1997-type","2009-type","Hospitalisation"
+"Americas",13,13,8
+"Asia",23,10,12
+"Primary-DENV1",4,3,2
+"Primary-DENV2",6,3,2
+"Primary-DENV3",6,2,2
+"Secondary-DENV1",4,5,2
+"Secondary-DENV2",7,7,2
+"Secondary-DENV3",7,5,NA
+"Secondary-DENV4",5,NA,NA
+"Unknown-DENV1",20,11,12
+"Unknown-DENV2",22,11,13
+"Unknown-DENV3",15,6,8
+"Unknown-DENV4",9,7,5
+"Intercept",36,23,20
