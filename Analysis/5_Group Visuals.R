@@ -58,7 +58,8 @@ setwd("..")
 index_dir = getwd() #Where the review index is in
 setwd(base_dir)
 
-io_set = "Main Results"
+# io_set = "Main Results"
+io_set = "AddDeDupe"
 
 model_input_dir = file.path(base_dir, "Processed Data", io_set)
 model_output_dir = file.path(base_dir, "Model Output", io_set)
@@ -67,12 +68,12 @@ sev_class_types = c("1997type", "2009type", "hospitalisation")
 # 2. Scenario Probability Visuals ----
 # Functions to generate the pooled scenario visuals
 # %%
-curr_input_data = model_inputs[[1]]
-curr_output_data = model_outputs[[1]]
-curr_sev_class_type = sev_class_types[[1]]
-#curr_het_results = het_results[[1]]
-curr_het_results = NULL
-effect_type = "random"
+# curr_input_data = model_inputs[[1]]
+# curr_output_data = model_outputs[[1]]
+# curr_sev_class_type = sev_class_types[[1]]
+# #curr_het_results = het_results[[1]]
+# curr_het_results = NULL
+# effect_type = "random"
 
 process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_class_type, curr_het_results, effect_type = "random"){
 	#Probabilities are given in the estimates of p 
@@ -122,7 +123,8 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
 		scenario_df = scenario_df %>%
 			mutate(
 				DispHet = str_replace_all(DispHet, "\\.", "·"),
-				DispTau = str_replace_all(DispTau, "\\.", "·")
+				DispTau = str_replace_all(DispTau, "\\.", "·"),
+				DispProbHetSub = str_replace_all(DispProbHetSub, "\\.", "·")
 			)
 	}
 
@@ -456,8 +458,8 @@ visualise_model_set = function(model_set, effect_type, data_suffix = "", het_est
 	model_input_paths = file.path(model_input_dir, paste0("data_", sev_class_types, data_suffix, ".rds"))
 	model_output_paths = file.path(model_output_dir, paste0("Results_", model_set, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_types, ".rds"))
 
-	index_df = read_excel(file.path(index_dir, "ReviewIndex_Final.xlsx"), sheet = "Main")
-
+	# index_df = read_excel(file.path(index_dir, "ReviewIndex_Final.xlsx"), sheet = "Main")
+	index_df = read_excel(file.path(index_dir, "ReviewIndex_Final_Strict.xlsx"), sheet = "Main")
 	model_inputs = lapply(model_input_paths, readRDS)
 	model_outputs = lapply(model_output_paths, readRDS)
 	if(het_est == "separate"){

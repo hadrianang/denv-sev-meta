@@ -13,7 +13,7 @@ Sys.setenv(RSTUDIO = "1")
 base_dir = getwd()
 model_code_dir = file.path(base_dir, "Model Code")
 
-io_set = "Main Results"
+io_set = "AddDeDupe"
 model_input_dir = file.path(base_dir, "Processed Data", io_set)
 output_dir = file.path(base_dir, "Model Output", io_set)
 
@@ -79,7 +79,7 @@ orig_1997_no_narvaez = fit_model("1997type", "LogisticRegressionModel", iter = 1
 orig_1997_no_sabchareon = fit_model("1997type", "LogisticRegressionModel", iter = 10000, chains = 4, data_suffix = "_no_sabchareon")
 orig_1997_no_fried = fit_model("1997type", "LogisticRegressionModel", iter = 10000, chains = 4, data_suffix = "_no_fried")
 
-curr_sev_class_type = "1997type"
+# curr_sev_class_type = "1997type"
 saveRDS(orig_1997_no_narvaez, file.path(output_dir, paste0("Results_LogisticRegression_no_narvaez_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_", curr_sev_class_type, ".rds")))
 saveRDS(orig_1997_no_sabchareon, file.path(output_dir, paste0("Results_LogisticRegression_no_sabchareon_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_", curr_sev_class_type, ".rds")))
 saveRDS(orig_1997_no_fried, file.path(output_dir, paste0("Results_LogisticRegression_no_fried_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_", curr_sev_class_type, ".rds")))

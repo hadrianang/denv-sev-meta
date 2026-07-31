@@ -40,7 +40,8 @@ save_plot_all_formats = function(curr_plot, dir_path, filename, width, height, u
 # Paths and Inputs ----
 # %%
 base_dir = getwd()
-io_set = "Main Results"
+# io_set = "Main Results"
+io_set = "AddDeDupe"
 save_output = TRUE
 
 
@@ -54,8 +55,8 @@ het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
 sev_class_types = c("1997type", "2009type", "hospitalisation")
 model_names = c("LogisticRegression", "FE", "NoCorr")
 
-sev_class_type = sev_class_types[[1]]
-model_name = model_names[[1]]
+sev_class_type = sev_class_types[[2]]
+model_name = model_names[[2]]
 effects_type = "random"
 het_est = "stan"
 suffix = ""
