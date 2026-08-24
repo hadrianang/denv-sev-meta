@@ -85,12 +85,12 @@ data_label_str = paste0("_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_
 # 2. Scenario Probability Visuals ----
 # Functions to generate the pooled scenario visuals
 # %%
-curr_input_data = model_inputs[[1]]
-curr_output_data = model_outputs[[1]]
-curr_sev_class_type = sev_class_types[[1]]
-#curr_het_results = het_results[[1]]
-curr_het_results = NULL
-effect_type = "random"
+# curr_input_data = model_inputs[[1]]
+# curr_output_data = model_outputs[[1]]
+# curr_sev_class_type = sev_class_types[[1]]
+# #curr_het_results = het_results[[1]]
+# curr_het_results = NULL
+# effect_type = "random"
 
 process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_class_type, curr_het_results, effect_type = "random"){
 	#Probabilities are given in the estimates of p 
@@ -114,17 +114,19 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
 	# pred_interval_estimates = summary(curr_output_data, pars = "pred_interval_p")$summary %>% data.frame %>% 
 	# 		select(mean, X2.5., X97.5.) %>% rename(PointEstPred = mean, LowerPred = X2.5., UpperPred = X97.5.)
 	scenario_df = curr_input_data$scenario_df %>% select(ScenIndex, Scenario, Inclusion, NumStudies, Severe, N)
-
-    curr_pred_interval_summ = summary(curr_output_data, pars = "pred_interval_p")$summary %>% data.frame %>% mutate(ScenIndex = 1:nrow(.)) %>%
-                        rename(PredIntPointEst = mean, PredIntLower = X2.5., PredIntUpper = X97.5.)
-    curr_pred_interval_summ = scenario_df %>% left_join(curr_pred_interval_summ %>% select(ScenIndex, PredIntPointEst, PredIntLower, PredIntUpper), by = c("ScenIndex")) %>%
-                        filter(!is.na(PredIntPointEst))
-	
-	curr_pred_interval_summ = curr_pred_interval_summ %>% select(Scenario, PredIntPointEst, PredIntLower, PredIntUpper)
-
-
-	scenario_df = scenario_df %>% left_join(curr_pred_interval_summ, by = "Scenario")
+  
 	if(effect_type == "random"){
+      
+		curr_pred_interval_summ = summary(curr_output_data, pars = "pred_interval_p")$summary %>% data.frame %>% mutate(ScenIndex = 1:nrow(.)) %>%
+							rename(PredIntPointEst = mean, PredIntLower = X2.5., PredIntUpper = X97.5.)
+		curr_pred_interval_summ = scenario_df %>% left_join(curr_pred_interval_summ %>% select(ScenIndex, PredIntPointEst, PredIntLower, PredIntUpper), by = c("ScenIndex")) %>%
+							filter(!is.na(PredIntPointEst))
+		
+		curr_pred_interval_summ = curr_pred_interval_summ %>% select(Scenario, PredIntPointEst, PredIntLower, PredIntUpper) %>% 
+          					mutate(DispPredInt = sprintf("%.2f%% [%.2f to %.2f%%]", PredIntPointEst * 100, PredIntLower * 100, PredIntUpper * 100))
+
+		scenario_df = scenario_df %>% left_join(curr_pred_interval_summ, by = "Scenario")
+
 		tau_estimates = summary(curr_output_data, pars = "tau")$summary %>% data.frame %>% 
 					select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>%
 					mutate(ScenIndex = 1:nrow(.)) %>% mutate(DispTau = sprintf("%.2f [%.2f to %.2f]", PointEst, Lower, Upper))
@@ -150,6 +152,7 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
 		scenario_df = scenario_df %>% left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex")
 		scenario_df = scenario_df %>%
 			mutate(
+				DispPredInt = str_replace_all(DispPredInt, "\\.", "·"),
 				DispHet = str_replace_all(DispHet, "\\.", "·"),
 				DispTau = str_replace_all(DispTau, "\\.", "·"),
 				DispProbHetSub = str_replace_all(DispProbHetSub, "\\.", "·")
@@ -175,11 +178,19 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
 	#Create the header row
 	header_row = data.frame(Scenario = disp_sev_class, Inclusion = NA,
 					NumStudies = NA, Severe = NA, N = NA, DispN = NA, PointEst = NA, 
-						Lower = NA, Upper = NA, DispVal = NA, #DispHet = NA, DispTau = NA,
-					PredIntPointEst = NA, PredIntLower = NA, PredIntUpper = NA,
+					Lower = NA, Upper = NA, DispVal = NA, #DispHet = NA, DispTau = NA,
 					SevClass = "HEADER")
 	if (effect_type == "random"){
-		header_row = header_row %>% mutate(DispHet = NA, DispTau = NA, DispProbHetSub = NA)
+		header_row <- header_row %>%
+			mutate(
+				PredIntPointEst = NA,
+				PredIntLower = NA,
+				PredIntUpper = NA,
+				DispPredInt = NA,
+				DispHet = NA,
+				DispTau = NA,
+				DispProbHetSub = NA
+			)
 	}
 	scenario_df = rbind(header_row, scenario_df %>% mutate(Scenario = paste0("       ", Scenario))) 
 
@@ -219,35 +230,42 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_typ
                         DispVal = "Est. Proportion [95% CrI]"
                     )
 	if(effect_type == "random"){
-		labeltext_list = c(labeltext_list, "DispHet", "DispTau", "DispProbHetSub")
+		labeltext_list = c(labeltext_list, "DispPredInt", "DispHet", "DispTau", "DispProbHetSub")
+		header_args$DispPredInt = "Pred. Interval [95% CrI]"
 		header_args$DispHet = expression(I^{2})
 		header_args$DispTau = expression(tau)
 		header_args$DispProbHetSub = "Prob. I² ≥ 75%"
 	}
 
     label_df = merged_forest_df %>% 
-
         select(all_of(labeltext_list))
 	
-	options(repr.plot.width = 19, repr.plot.height = 21)
-	merged_forest_plot = merged_forest_df %>% 
-		forestplot(labeltext = label_df,
-				mean = PointEst, lower = Lower, upper = Upper,
+	mean_mat  = cbind(merged_forest_df$PointEst, merged_forest_df$PredIntPointEst)
+	lower_mat = cbind(merged_forest_df$Lower, merged_forest_df$PredIntLower)
+	upper_mat = cbind(merged_forest_df$Upper, merged_forest_df$PredIntUpper)
+	label_mat = as.matrix(label_df)
+	
+	options(repr.plot.width = 20, repr.plot.height = 21)
+	merged_forest_plot = 
+		forestplot(label_mat,
+				mean = mean_mat, lower = lower_mat, upper = upper_mat,
 				xticks = seq(0, 1, by = 0.2), ci.vertices = TRUE, boxsize = 0.2,
-				align = c("l", "l", "l", "r", "r", "l", "l"), graphwidth = unit(1.8, "in"), 
+				align = c("l", "l", "l", "r", "r", "l", "l"), graphwidth = unit(1.8, "in"),
+				legend = c("Est. Proportion", "Pred. Interval")
 				) |>
 		fp_add_lines(h_2 = gpar(lty = 2)) |>
-		fp_set_style(box = "royalblue", line = gpar(col = "darkblue"), summary = "royalblue",
+		
+		fp_set_style(box = c("royalblue", "grey40"), line = list(gpar(col = "darkblue"), gpar(col = "grey30", lty = 2)), summary = "royalblue",
 				txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1)))
       
         merged_forest_plot = do.call(fp_add_header, c(list(merged_forest_plot), header_args))
    		merged_forest_plot = merged_forest_plot |>
         fp_decorate_graph(graph.pos = 7) |> fp_set_zebra_style("#EFEFEF")
-
-
+  
+  
 	if(save_output){
 		#save_plot(merged_forest_plot, file.path(visuals_output_dir, paste0("ScenarioForest.png")), 15, 21, "in", 600)
-		save_plot_all_formats(merged_forest_plot, visuals_output_dir, "ScenarioForest", 19, 23, "in", 600)
+		save_plot_all_formats(merged_forest_plot, visuals_output_dir, "ScenarioForest", 22, 23, "in", 600)
 	}
 	#Return the merged forest df for use in the vaccine trial comparison visuals
 	return(merged_forest_df)
