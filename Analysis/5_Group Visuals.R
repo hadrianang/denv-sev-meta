@@ -59,21 +59,38 @@ index_dir = getwd() #Where the review index is in
 setwd(base_dir)
 
 # io_set = "Main Results"
-io_set = "AddDeDupe"
-
+#io_set = "AddDeDupe"
+io_set = "PriorSensitivitySigmaMean0"
 model_input_dir = file.path(base_dir, "Processed Data", io_set)
 model_output_dir = file.path(base_dir, "Model Output", io_set)
 sev_class_types = c("1997type", "2009type", "hospitalisation")
 
+# coeff_prior_mean = 0
+# coeff_prior_sd = 2
+# sd_prior_mean = 0.5
+# sd_prior_sd = 2
+
+# coeff_prior_mean = 0
+# coeff_prior_sd = 1
+# sd_prior_mean = 0
+# sd_prior_sd = 1
+
+coeff_prior_mean = 0
+coeff_prior_sd = 2
+sd_prior_mean = 0
+sd_prior_sd = 2
+
+data_label_str = paste0("_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_")
+
 # 2. Scenario Probability Visuals ----
 # Functions to generate the pooled scenario visuals
 # %%
-# curr_input_data = model_inputs[[1]]
-# curr_output_data = model_outputs[[1]]
-# curr_sev_class_type = sev_class_types[[1]]
-# #curr_het_results = het_results[[1]]
-# curr_het_results = NULL
-# effect_type = "random"
+curr_input_data = model_inputs[[1]]
+curr_output_data = model_outputs[[1]]
+curr_sev_class_type = sev_class_types[[1]]
+#curr_het_results = het_results[[1]]
+curr_het_results = NULL
+effect_type = "random"
 
 process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_class_type, curr_het_results, effect_type = "random"){
 	#Probabilities are given in the estimates of p 
@@ -93,9 +110,20 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
 	p_estimates = summary(curr_output_data, pars = "p")$summary %>% data.frame %>% 
 			select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>% 
 			mutate(Scenario = scenario_labels)
-
+	
+	# pred_interval_estimates = summary(curr_output_data, pars = "pred_interval_p")$summary %>% data.frame %>% 
+	# 		select(mean, X2.5., X97.5.) %>% rename(PointEstPred = mean, LowerPred = X2.5., UpperPred = X97.5.)
 	scenario_df = curr_input_data$scenario_df %>% select(ScenIndex, Scenario, Inclusion, NumStudies, Severe, N)
 
+    curr_pred_interval_summ = summary(curr_output_data, pars = "pred_interval_p")$summary %>% data.frame %>% mutate(ScenIndex = 1:nrow(.)) %>%
+                        rename(PredIntPointEst = mean, PredIntLower = X2.5., PredIntUpper = X97.5.)
+    curr_pred_interval_summ = scenario_df %>% left_join(curr_pred_interval_summ %>% select(ScenIndex, PredIntPointEst, PredIntLower, PredIntUpper), by = c("ScenIndex")) %>%
+                        filter(!is.na(PredIntPointEst))
+	
+	curr_pred_interval_summ = curr_pred_interval_summ %>% select(Scenario, PredIntPointEst, PredIntLower, PredIntUpper)
+
+
+	scenario_df = scenario_df %>% left_join(curr_pred_interval_summ, by = "Scenario")
 	if(effect_type == "random"){
 		tau_estimates = summary(curr_output_data, pars = "tau")$summary %>% data.frame %>% 
 					select(mean, X2.5., X97.5.) %>% rename(PointEst = mean, Lower = X2.5., Upper = X97.5.) %>%
@@ -143,17 +171,24 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
 	}else{
 		disp_sev_class = "Hospitalisation"
 	}
+
 	#Create the header row
 	header_row = data.frame(Scenario = disp_sev_class, Inclusion = NA,
 					NumStudies = NA, Severe = NA, N = NA, DispN = NA, PointEst = NA, 
 						Lower = NA, Upper = NA, DispVal = NA, #DispHet = NA, DispTau = NA,
+					PredIntPointEst = NA, PredIntLower = NA, PredIntUpper = NA,
 					SevClass = "HEADER")
 	if (effect_type == "random"){
 		header_row = header_row %>% mutate(DispHet = NA, DispTau = NA, DispProbHetSub = NA)
 	}
 	scenario_df = rbind(header_row, scenario_df %>% mutate(Scenario = paste0("       ", Scenario))) 
+
 	return(scenario_df)
 }
+
+
+
+
 # %%
 gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_types, het_results, visuals_output_dir, effect_type = "random", save_output = save_output){
 	#If het_results is NULL, we use the Stan estimated I^2 values
@@ -451,12 +486,18 @@ generate_region_country_visual = function(model_inputs, index_df, visuals_output
 
 
 #%%
+model_set = "LogisticRegression"
+effect_type = "random"
+data_suffix = ""
+het_est = "stan"
+save_output = TRUE
+
 visualise_model_set = function(model_set, effect_type, data_suffix = "", het_est = "stan", save_output = save_output){
 	het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
 	visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, model_set, "GroupVisuals")
   	print(visuals_output_dir)
 	model_input_paths = file.path(model_input_dir, paste0("data_", sev_class_types, data_suffix, ".rds"))
-	model_output_paths = file.path(model_output_dir, paste0("Results_", model_set, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_types, ".rds"))
+	model_output_paths = file.path(model_output_dir, paste0("Results_", model_set, data_label_str, sev_class_types, ".rds"))
 
 	# index_df = read_excel(file.path(index_dir, "ReviewIndex_Final.xlsx"), sheet = "Main")
 	index_df = read_excel(file.path(index_dir, "ReviewIndex_Final_Strict.xlsx"), sheet = "Main")
@@ -487,7 +528,46 @@ visualise_model_set = function(model_set, effect_type, data_suffix = "", het_est
 
 #Function Calls ----
 #%%
+# model_sets = c("LogisticRegression", "LogisticRegression_no_unknown", "FE", "NoCorr")
+# sev_class_types = c("1997type", "2009type")
+# visualise_model_set("LogisticRegression", effect_type = "random", het_est = "stan", save_output = save_output)
+# #%%
+
+# #Special visuals for de-duplication sensitivity analysis 
+# model_set = "LogisticRegression"
+# data_suffix = ""
+# het_est = "stan"
+# het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
+# visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, model_set, "GroupVisuals")
+# print(visuals_output_dir)
+# model_input_paths = file.path(model_input_dir, paste0("data_", sev_class_types, data_suffix, ".rds"))
+# model_output_paths = file.path(model_output_dir, paste0("Results_", model_set, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_types, ".rds"))
+
+# #%%
+# # index_df = read_excel(file.path(index_dir, "ReviewIndex_Final.xlsx"), sheet = "Main")
+# index_df = read_excel(file.path(index_dir, "ReviewIndex_Final_Strict.xlsx"), sheet = "Main")
+# model_inputs = lapply(model_input_paths, readRDS)
+# model_outputs = lapply(model_output_paths, readRDS)
+# if(het_est == "separate"){
+# 	het_results_paths = file.path(het_dir, paste0("I2_Estimates_", model_set, "_", sev_class_types, ".rds"))
+# 	het_results = lapply(het_results_paths, readRDS)
+# }else if(het_est == "stan"){
+# 	het_results = NULL
+# }else{
+# 	stop("Invalid het_est value. Must be either 'stan' or 'separate'.")
+# }
+
+# #If visuals_output_dir does not exist, create it
+# if(!dir.exists(visuals_output_dir)){
+# 	dir.create(visuals_output_dir, recursive = TRUE)
+# }
+
+
+# merged_forest_df = gen_scenario_pooled_visual(model_inputs, model_outputs, sev_class_types, 
+# 					het_results = het_results, visuals_output_dir = visuals_output_dir, effect_type = "random", save_output = TRUE)
+#%%
 model_sets = c("LogisticRegression", "LogisticRegression_no_unknown", "FE", "NoCorr")
+sev_class_types = c("1997type", "2009type", "hospitalisation")
 visualise_model_set("LogisticRegression", effect_type = "random", het_est = "stan", save_output = save_output)
 visualise_model_set("LogisticRegression_no_unknown", effect_type = "random", data_suffix = "_no_unknown", het_est = "stan", save_output = save_output)
 visualise_model_set("FE", effect_type = "fixed", het_est = "stan", save_output = save_output)
