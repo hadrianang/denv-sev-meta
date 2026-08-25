@@ -58,16 +58,24 @@ setwd("..")
 index_dir = getwd() #Where the review index is in
 setwd(base_dir)
 
-# io_set = "Main Results"
+io_set = "Main Results"
 #io_set = "AddDeDupe"
-io_set = "PriorSensitivitySigmaMean0"
+#io_set = "PriorSensitivity"
+
 model_input_dir = file.path(base_dir, "Processed Data", io_set)
 model_output_dir = file.path(base_dir, "Model Output", io_set)
 sev_class_types = c("1997type", "2009type", "hospitalisation")
 
+#Labels for different sensitivity analyses
+coeff_prior_mean = 0
+coeff_prior_sd = 2
+sd_prior_mean = 0.5
+sd_prior_sd = 2
+data_label_str = paste0("_mean=0_sd=2_sd_mean=0.5_sdsd=2_")
+
 # coeff_prior_mean = 0
 # coeff_prior_sd = 2
-# sd_prior_mean = 0.5
+# sd_prior_mean = 0
 # sd_prior_sd = 2
 
 # coeff_prior_mean = 0
@@ -75,12 +83,7 @@ sev_class_types = c("1997type", "2009type", "hospitalisation")
 # sd_prior_mean = 0
 # sd_prior_sd = 1
 
-coeff_prior_mean = 0
-coeff_prior_sd = 2
-sd_prior_mean = 0
-sd_prior_sd = 2
-
-data_label_str = paste0("_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_")
+# data_label_str = paste0("_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_")
 
 # 2. Scenario Probability Visuals ----
 # Functions to generate the pooled scenario visuals
@@ -231,7 +234,7 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_typ
                     )
 	if(effect_type == "random"){
 		labeltext_list = c(labeltext_list, "DispPredInt", "DispHet", "DispTau", "DispProbHetSub")
-		header_args$DispPredInt = "Pred. Interval [95% CrI]"
+		header_args$DispPredInt = "Pred. Interval (95%)"
 		header_args$DispHet = expression(I^{2})
 		header_args$DispTau = expression(tau)
 		header_args$DispProbHetSub = "Prob. I² ≥ 75%"
@@ -255,7 +258,7 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_typ
 				) |>
 		fp_add_lines(h_2 = gpar(lty = 2)) |>
 		
-		fp_set_style(box = c("royalblue", "grey40"), line = list(gpar(col = "darkblue"), gpar(col = "grey30", lty = 2)), summary = "royalblue",
+		fp_set_style(box = c("royalblue", "grey50"), line = list(gpar(col = "darkblue"), gpar(col = "grey30", lty = 2)), summary = "royalblue",
 				txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1)))
       
         merged_forest_plot = do.call(fp_add_header, c(list(merged_forest_plot), header_args))
