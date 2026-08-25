@@ -32,6 +32,17 @@ visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, "ComparisonPl
 if(!dir.exists(visuals_output_dir)) {
     dir.create(visuals_output_dir, recursive = TRUE)
 }
+coeff_prior_mean = 0
+coeff_prior_sd = 2
+sd_prior_mean = 0.5
+sd_prior_sd = 2
+data_label_str = paste0("_mean=0_sd=2_sd_mean=0.5_sdsd=2_")
+
+# coeff_prior_mean = 0
+# coeff_prior_sd = 1
+# sd_prior_mean = 0
+# sd_prior_sd = 1
+#data_label_str = paste0("_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_")
 
 # I^2 Comparison plot ----
 #%% I^2 Comparison 
@@ -47,7 +58,7 @@ get_het_comp_df = function(curr_sev_class_type) {
 
     #Read in model fit results to get the Stan-based estimates
     curr_model_fit = readRDS(file.path(model_output_dir, 
-                    paste0("Results_", curr_model_name, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
+                    paste0("Results_", curr_model_name, data_label_str, curr_sev_class_type, ".rds")))
     curr_model_input = readRDS(file.path(model_input_dir, 
                     paste0("data_", curr_sev_class_type, data_suffix, ".rds")))
 
@@ -78,7 +89,7 @@ ggsave(I2_est_plot, filename = file.path(visuals_output_dir, "I2_Estimate_Compar
 
 get_pooled_effects = function(curr_model_name, curr_sev_class_type, data_suffix = "") {
     curr_model_fit = readRDS(file.path(model_output_dir, 
-                    paste0("Results_", curr_model_name, data_suffix, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
+                    paste0("Results_", curr_model_name, data_suffix, data_label_str, curr_sev_class_type, ".rds")))
 
 
     scenario_df = readRDS(file.path(model_input_dir, paste0("data_", curr_sev_class_type, data_suffix, ".rds")))$scenario_df 
@@ -112,14 +123,17 @@ pooled_effects_plot = pooled_effects_df %>%
 ggsave(pooled_effects_plot, filename = file.path(visuals_output_dir, "Pooled_Effects_Comparison.png"), width = 14, height = 8)
 pooled_effects_plot
 
-#%% SeroPrior Comparison Plot
+#%% SeroPrior Comparison Ploto
+curr_model_name = "LogisticRegression"
+curr_sev_class_type = "1997type"
+data_suffix = ""
 
 gen_or_comp_df = function(curr_model_name, curr_sev_class_type, data_suffix = "") {
     curr_model_input = readRDS(file.path(model_input_dir, paste0("data_", curr_sev_class_type, data_suffix, ".rds")))
     scenario_df = curr_model_input$scenario_df 
     char_mat_guide = curr_model_input$char_mat_guide
     curr_model_fit = readRDS(file.path(model_output_dir, 
-                    paste0("Results_", curr_model_name, data_suffix, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
+                    paste0("Results_", curr_model_name, data_suffix, data_label_str, curr_sev_class_type, ".rds")))
 
     ref_region = curr_model_input$ref_region
     non_ref_region = ifelse(ref_region == "Asia", "Americas", "Asia")
@@ -184,6 +198,11 @@ or_params_df = expand.grid(Model = model_names, SevClass = sev_class_types, stri
 or_comparison_df = or_params_df %>% pmap_dfr(function(Model, SevClass, data_suffix) gen_or_comp_df(Model, SevClass, data_suffix))
 
 #%%
+
+curr_sev_class_type = "1997type"
+use_model_column = FALSE
+main_name = "LogisticRegression"
+filter_list = NULL
 gen_or_comp_plot = function(or_comparison_df, curr_sev_class_type, use_model_column = FALSE, main_name = "LogisticRegression", filter_list = NULL) {
     or_to_vis_df = or_comparison_df
     #Optionally filter out the unknown scenarios
@@ -310,7 +329,7 @@ data_suffix = ""
 
 gen_interval_comp_df = function(curr_model_name, curr_sev_class_type, data_suffix = "") {
     curr_model_fit = readRDS(file.path(model_output_dir, 
-                        paste0("Results_", curr_model_name, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
+                        paste0("Results_", curr_model_name, data_label_str, curr_sev_class_type, ".rds")))
 
 
     scenario_df = readRDS(file.path(model_input_dir, paste0("data_", curr_sev_class_type, data_suffix, ".rds")))$scenario_df 
@@ -355,7 +374,7 @@ curr_sev_class_type = sev_class_types[[1]]
 data_suffix = "no_narvaez"
 gen_influential_studies_p_df = function(curr_model_name, curr_sev_class_type, data_suffix = "") {
     curr_model_fit = readRDS(file.path(model_output_dir, 
-                        paste0("Results_", curr_model_name, data_suffix, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", curr_sev_class_type, ".rds")))
+                        paste0("Results_", curr_model_name, data_suffix, data_label_str, curr_sev_class_type, ".rds")))
 
 
     scenario_df = readRDS(file.path(model_input_dir, paste0("data_", curr_sev_class_type,  data_suffix, ".rds")))$scenario_df 

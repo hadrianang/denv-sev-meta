@@ -40,8 +40,9 @@ save_plot_all_formats = function(curr_plot, dir_path, filename, width, height, u
 # Paths and Inputs ----
 # %%
 base_dir = getwd()
-# io_set = "Main Results"
-io_set = "AddDeDupe"
+
+io_set = "Main Results"
+#io_set = "PriorSensitivity"
 save_output = TRUE
 
 
@@ -55,11 +56,26 @@ het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
 sev_class_types = c("1997type", "2009type", "hospitalisation")
 model_names = c("LogisticRegression", "FE", "NoCorr")
 
-sev_class_type = sev_class_types[[2]]
-model_name = model_names[[2]]
-effects_type = "random"
-het_est = "stan"
-suffix = ""
+
+#Labels for different sensitivity analyses
+coeff_prior_mean = 0
+coeff_prior_sd = 2
+sd_prior_mean = 0.5
+sd_prior_sd = 2
+data_label_str = paste0("_mean=0_sd=2_sd_mean=0.5_sdsd=2_")
+
+# coeff_prior_mean = 0
+# coeff_prior_sd = 2
+# sd_prior_mean = 0
+# sd_prior_sd = 2
+
+# coeff_prior_mean = 0
+# coeff_prior_sd = 1
+# sd_prior_mean = 0
+# sd_prior_sd = 1
+
+# data_label_str = paste0("_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_")
+
 #%%
 #sev_class_type = "2009type"
 #sev_class_type = "hospitalisation"
@@ -69,7 +85,7 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
     subgroup_forests_dir = file.path(visuals_output_dir, "ScenarioForests")
 
     input_data = file.path(model_input_dir, paste0("data_", sev_class_type, suffix, ".rds")) %>% readRDS
-    model_results = file.path(model_output_dir, paste0("Results_", model_name, suffix, "_mean=0_sd=2_sd_mean=0.5_sdsd=2_", sev_class_type, ".rds")) %>% readRDS
+    model_results = file.path(model_output_dir, paste0("Results_", model_name, suffix, data_label_str, sev_class_type, ".rds")) %>% readRDS
 
 
     if(!dir.exists(visuals_output_dir)){
@@ -195,11 +211,23 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
         }else{
             stop("Invalid option for het_est. Must be either 'separate' or 'stan'.")
         }
-        
+
+        curr_pred_interval_summ = summary(model_results, pars = "pred_interval_p")$summary %>% data.frame %>% mutate(ScenIndex = 1:nrow(.)) %>%
+							rename(PredIntPointEst = mean, PredIntLower = X2.5., PredIntUpper = X97.5.)
+		curr_pred_interval_summ = scenario_vis_df %>% left_join(curr_pred_interval_summ %>% select(ScenIndex, PredIntPointEst, PredIntLower, PredIntUpper), by = c("ScenIndex")) %>%
+							filter(!is.na(PredIntPointEst))
+		
+		curr_pred_interval_summ = curr_pred_interval_summ %>% select(Scenario, PredIntPointEst, PredIntLower, PredIntUpper) %>% 
+          					mutate(DispPredInt = sprintf("%.2f%% [%.2f to %.2f%%]", PredIntPointEst * 100, PredIntLower * 100, PredIntUpper * 100))
+
+        scenario_vis_df = scenario_vis_df %>% left_join(curr_pred_interval_summ, by = "Scenario")
         scenario_vis_df = scenario_vis_df %>% left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex") %>% select(-ScenIndex)
-        labeltext_list = c(labeltext_list, "DispHet", "DispTau")
+        labeltext_list = c(labeltext_list, "DispPredInt", "DispHet", "DispTau")
+
+        header_args$DispPredInt = "Pred. Interval (95%)"
         header_args$DispHet = expression(I^{2})
         header_args$DispTau = expression(tau)
+
         scenario_vis_df = scenario_vis_df %>% mutate(DispHet = str_replace_all(DispHet, "\\.", "·"), DispTau = str_replace_all(DispTau, "\\.", "·"))
     }
     scenario_vis_df = scenario_vis_df %>% mutate(Pooled = ifelse(Inclusion == "Included", "Pooled", "Not Pooled")) 
@@ -210,23 +238,29 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
         arrange(Scenario) %>%
         select(all_of(labeltext_list))
     #Generate a forest plot specifically for this severity class
+    mean_mat  = cbind(scenario_vis_df$PointEst, scenario_vis_df$PredIntPointEst)
+	lower_mat = cbind(scenario_vis_df$Lower, scenario_vis_df$PredIntLower)
+	upper_mat = cbind(scenario_vis_df$Upper, scenario_vis_df$PredIntUpper)
+	label_mat = as.matrix(label_df)
+	
     options(repr.plot.width = 15, repr.plot.height = 13)
-    scenario_plot = scenario_vis_df %>% arrange(Scenario) %>% #Add a space in multiples of 3 digits
-        forestplot(labeltext = label_df,
-                    mean = PointEst, lower = Lower, upper = Upper,
+    scenario_plot = #scenario_vis_df %>% arrange(Scenario) %>% #Add a space in multiples of 3 digits
+        forestplot(label_mat,
+                    mean = mean_mat, lower = lower_mat, upper = upper_mat,
                     xticks = seq(0, 1, by = 0.2), ci.vertices = TRUE, boxsize = 0.2,
-                    align = c("l", "l", "l", "r", "r"), graphwidth = unit(1.8, "in")
+                    align = c("l", "l", "l", "l", "r", "r"), graphwidth = unit(1.8, "in"),
+                    legend = c("Est. Proportion", "Pred. Interval")
                 ) |>
         fp_add_lines(h_2 = gpar(lty = 2)) |>
-        fp_set_style(box = "royalblue", line = gpar(col = "darkblue"), summary = "royalblue",
-                    txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1)))
+		fp_set_style(box = c("royalblue", "grey50"), line = list(gpar(col = "darkblue"), gpar(col = "grey30", lty = 2)), summary = "royalblue",
+				txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1)))
     scenario_plot = do.call(fp_add_header, c(list(scenario_plot), header_args))
     scenario_plot = scenario_plot |>
         fp_decorate_graph(graph.pos = 7) |> fp_set_zebra_style("#EFEFEF")
 
     if(save_output){
         #save_plot(scenario_plot, file.path(visuals_output_dir, paste0("SubgroupForest_",  sev_class_type, ".png")), 15, 13, "in", 600)
-        save_plot_all_formats(scenario_plot, visuals_output_dir, paste0("SubgroupForest_",  sev_class_type), 18, 14, "in", 600)
+        save_plot_all_formats(scenario_plot, visuals_output_dir, paste0("SubgroupForest_",  sev_class_type), 20, 14, "in", 600)
     }
 
 
