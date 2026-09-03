@@ -9,6 +9,3 @@ Analysis/Cohort Analysis/Model Inputs/*
 Analysis/Cohort Analysis/Model Outputs/*
 Analysis/Cohort Analysis/Output Visuals/**
 .Rhistory
-**/Checker/**
-Analysis/Processed Data/PriorSensitivitySigma/**
-Analysis/Processed Data/PriorSensitivitySigmaMean0/**

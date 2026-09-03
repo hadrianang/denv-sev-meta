@@ -42,7 +42,7 @@ save_plot_all_formats = function(curr_plot, dir_path, filename, width, height, u
 base_dir = getwd()
 
 io_set = "Main Results"
-#io_set = "PriorSensitivity"
+# io_set = "PriorSensitivity"
 save_output = TRUE
 
 
@@ -73,7 +73,6 @@ data_label_str = paste0("_mean=0_sd=2_sd_mean=0.5_sdsd=2_")
 # coeff_prior_sd = 1
 # sd_prior_mean = 0
 # sd_prior_sd = 1
-
 # data_label_str = paste0("_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_")
 
 #%%
@@ -218,7 +217,7 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
 							filter(!is.na(PredIntPointEst))
 		
 		curr_pred_interval_summ = curr_pred_interval_summ %>% select(Scenario, PredIntPointEst, PredIntLower, PredIntUpper) %>% 
-          					mutate(DispPredInt = sprintf("%.2f%% [%.2f to %.2f%%]", PredIntPointEst * 100, PredIntLower * 100, PredIntUpper * 100))
+          					mutate(DispPredInt = sprintf("[%.2f to %.2f%%]", PredIntLower * 100, PredIntUpper * 100))
 
         scenario_vis_df = scenario_vis_df %>% left_join(curr_pred_interval_summ, by = "Scenario")
         scenario_vis_df = scenario_vis_df %>% left_join(tau_estimates %>% select(ScenIndex, DispTau), by = "ScenIndex") %>% select(-ScenIndex)
@@ -252,7 +251,7 @@ generate_visuals = function(sev_class_type, model_name, suffix = "", effects_typ
                     legend = c("Est. Proportion", "Pred. Interval")
                 ) |>
         fp_add_lines(h_2 = gpar(lty = 2)) |>
-		fp_set_style(box = c("royalblue", "grey50"), line = list(gpar(col = "darkblue"), gpar(col = "grey30", lty = 2)), summary = "royalblue",
+		fp_set_style(box = c("royalblue", NA), line = list(gpar(col = "darkblue"), gpar(col = "grey30", lty = 2)), summary = "royalblue",
 				txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1)))
     scenario_plot = do.call(fp_add_header, c(list(scenario_plot), header_args))
     scenario_plot = scenario_plot |>
@@ -491,9 +490,9 @@ generate_visuals("2009type", "NoCorr", het_est = "stan")
 generate_visuals("hospitalisation", "NoCorr", het_est = "stan")
 
 #%%
-generate_visuals("1997type", "FE", effects_type = "fixed")
-generate_visuals("2009type", "FE", effects_type = "fixed")
-generate_visuals("hospitalisation", "FE", effects_type = "fixed")
+# generate_visuals("1997type", "FE", effects_type = "fixed")
+# generate_visuals("2009type", "FE", effects_type = "fixed")
+# generate_visuals("hospitalisation", "FE", effects_type = "fixed")
 
 #%%
 #No unknown visuals

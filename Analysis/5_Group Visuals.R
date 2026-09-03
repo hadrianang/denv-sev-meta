@@ -58,9 +58,9 @@ setwd("..")
 index_dir = getwd() #Where the review index is in
 setwd(base_dir)
 
-io_set = "Main Results"
-#io_set = "AddDeDupe"
-#io_set = "PriorSensitivity"
+# io_set = "Main Results"
+io_set = "AddDeDupe"
+# io_set = "PriorSensitivity"
 
 model_input_dir = file.path(base_dir, "Processed Data", io_set)
 model_output_dir = file.path(base_dir, "Model Output", io_set)
@@ -82,7 +82,6 @@ data_label_str = paste0("_mean=0_sd=2_sd_mean=0.5_sdsd=2_")
 # coeff_prior_sd = 1
 # sd_prior_mean = 0
 # sd_prior_sd = 1
-
 # data_label_str = paste0("_mean=", coeff_prior_mean,"_sd=", coeff_prior_sd, "_sd_mean=",  sd_prior_mean, "_sdsd=", sd_prior_sd, "_")
 
 # 2. Scenario Probability Visuals ----
@@ -126,7 +125,7 @@ process_scenario_probs = function(curr_input_data, curr_output_data, curr_sev_cl
 							filter(!is.na(PredIntPointEst))
 		
 		curr_pred_interval_summ = curr_pred_interval_summ %>% select(Scenario, PredIntPointEst, PredIntLower, PredIntUpper) %>% 
-          					mutate(DispPredInt = sprintf("%.2f%% [%.2f to %.2f%%]", PredIntPointEst * 100, PredIntLower * 100, PredIntUpper * 100))
+          					mutate(DispPredInt = sprintf("[%.2f to %.2f%%]", PredIntLower * 100, PredIntUpper * 100))
 
 		scenario_df = scenario_df %>% left_join(curr_pred_interval_summ, by = "Scenario")
 
@@ -247,7 +246,6 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_typ
 	lower_mat = cbind(merged_forest_df$Lower, merged_forest_df$PredIntLower)
 	upper_mat = cbind(merged_forest_df$Upper, merged_forest_df$PredIntUpper)
 	label_mat = as.matrix(label_df)
-	
 	options(repr.plot.width = 20, repr.plot.height = 21)
 	merged_forest_plot = 
 		forestplot(label_mat,
@@ -258,7 +256,7 @@ gen_scenario_pooled_visual = function(model_inputs, model_outputs, sev_class_typ
 				) |>
 		fp_add_lines(h_2 = gpar(lty = 2)) |>
 		
-		fp_set_style(box = c("royalblue", "grey50"), line = list(gpar(col = "darkblue"), gpar(col = "grey30", lty = 2)), summary = "royalblue",
+		fp_set_style(box = c("royalblue", NA), line = list(gpar(col = "darkblue"), gpar(col = "grey30", lty = 2)), summary = "royalblue",
 				txt_gp = fpTxtGp(cex =1.2, ticks = gpar(cex = 1)))
       
         merged_forest_plot = do.call(fp_add_header, c(list(merged_forest_plot), header_args))
@@ -507,12 +505,6 @@ generate_region_country_visual = function(model_inputs, index_df, visuals_output
 
 
 #%%
-model_set = "LogisticRegression"
-effect_type = "random"
-data_suffix = ""
-het_est = "stan"
-save_output = TRUE
-
 visualise_model_set = function(model_set, effect_type, data_suffix = "", het_est = "stan", save_output = save_output){
 	het_dir = file.path(base_dir, "Heterogeneity Estimates", io_set)
 	visuals_output_dir = file.path(base_dir, "Visuals Output", io_set, model_set, "GroupVisuals")
@@ -520,8 +512,8 @@ visualise_model_set = function(model_set, effect_type, data_suffix = "", het_est
 	model_input_paths = file.path(model_input_dir, paste0("data_", sev_class_types, data_suffix, ".rds"))
 	model_output_paths = file.path(model_output_dir, paste0("Results_", model_set, data_label_str, sev_class_types, ".rds"))
 
-	# index_df = read_excel(file.path(index_dir, "ReviewIndex_Final.xlsx"), sheet = "Main")
-	index_df = read_excel(file.path(index_dir, "ReviewIndex_Final_Strict.xlsx"), sheet = "Main")
+	index_df = read_excel(file.path(index_dir, "ReviewIndex_Final.xlsx"), sheet = "Main")
+	# index_df = read_excel(file.path(index_dir, "ReviewIndex_Final_Strict.xlsx"), sheet = "Main")
 	model_inputs = lapply(model_input_paths, readRDS)
 	model_outputs = lapply(model_output_paths, readRDS)
 	if(het_est == "separate"){
@@ -591,8 +583,8 @@ model_sets = c("LogisticRegression", "LogisticRegression_no_unknown", "FE", "NoC
 sev_class_types = c("1997type", "2009type", "hospitalisation")
 visualise_model_set("LogisticRegression", effect_type = "random", het_est = "stan", save_output = save_output)
 visualise_model_set("LogisticRegression_no_unknown", effect_type = "random", data_suffix = "_no_unknown", het_est = "stan", save_output = save_output)
-visualise_model_set("FE", effect_type = "fixed", het_est = "stan", save_output = save_output)
 visualise_model_set("NoCorr", effect_type = "random", het_est = "stan", save_output = save_output)
+# visualise_model_set("FE", effect_type = "fixed", het_est = "stan", save_output = save_output)
 
 
 #%%
